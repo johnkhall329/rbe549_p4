@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.stats import chi2
+from scipy.spatial.transform import Rotation
 
 from utils import *
 from feature import Feature
@@ -240,18 +241,20 @@ class MSCKF(object):
         omegas = np.vstack([msg.angular_velocity for msg in self.imu_msg_buffer])
         gyro_bias = omegas.mean(axis=0)
         acc = np.vstack([msg.linear_acceleration for msg in self.imu_msg_buffer])
-        acc_bias = acc.mean(axis=0)
-
+        self.state_server.imu_state.gyro_bias = gyro_bias
 
         # Find the gravity in the IMU frame.
-        ...
         
         # Normalize the gravity and save to IMUState          
-        ...
+        IMUState.gravity = np.array([0,0,-np.linalg.norm(grav_est)])
 
         # Initialize the initial orientation, so that the estimation
         # is consistent with the inertial frame.
-        ...
+        grav_est = acc.mean(axis=0)
+        grav_rot, _ = Rotation.align_vectors(grav_est, IMUState.gravity) # may need to change initial direction
+        self.state_server.imu_state.orientation = grav_rot.as_quat()
+        acc_bias = grav_est-grav_rot.as_matrix()@IMUState.gravity
+        self.state_server.imu_state.acc_bias = acc_bias
 
     # Filter related functions
     # (batch_imu_processing, process_model, predict_new_state)
