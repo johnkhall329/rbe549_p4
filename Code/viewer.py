@@ -1,6 +1,6 @@
 import numpy as np
 import OpenGL.GL as gl
-import pangolin
+import pypangolin
 import cv2
 
 from multiprocessing import Queue, Process
@@ -29,7 +29,7 @@ class Viewer(object):
             
 
     def view(self):
-        pangolin.CreateWindowAndBind('Viewer', 1024, 768)
+        pypangolin.CreateWindowAndBind('Viewer', 1024, 768)
         gl.glEnable(gl.GL_DEPTH_TEST)
         gl.glEnable(gl.GL_BLEND)
         gl.glBlendFunc (gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
@@ -39,38 +39,38 @@ class Viewer(object):
         viewpoint_z = -18 
         viewpoint_f = 1000
 
-        proj = pangolin.ProjectionMatrix(
+        proj = pypangolin.ProjectionMatrix(
             1024, 768, viewpoint_f, viewpoint_f, 512, 389, 0.1, 300)
-        look_view = pangolin.ModelViewLookAt(
+        look_view = pypangolin.ModelViewLookAt(
             viewpoint_x, viewpoint_y, viewpoint_z, 0, 0, 0, 0, -1, 0)
 
         # Camera Render Object (for view / scene browsing)
-        scam = pangolin.OpenGlRenderState(proj, look_view)
+        scam = pypangolin.OpenGlRenderState(proj, look_view)
 
         # Add named OpenGL viewport to window and provide 3D Handler
-        dcam = pangolin.CreateDisplay()
+        dcam = pypangolin.CreateDisplay()
         dcam.SetBounds(0.0, 1.0, 175 / 1024., 1.0, -1024 / 768.)
-        dcam.SetHandler(pangolin.Handler3D(scam))
+        dcam.SetHandler(pypangolin.Handler3D(scam))
 
         # image
         width, height = 376, 240
-        dimg = pangolin.Display('image')
+        dimg = pypangolin.Display('image')
         dimg.SetBounds(0, height / 768., 0.0, width / 1024., 1024 / 768.)
-        dimg.SetLock(pangolin.Lock.LockLeft, pangolin.Lock.LockTop)
+        dimg.SetLock(pypangolin.Lock.LockLeft, pypangolin.Lock.LockTop)
 
-        texture = pangolin.GlTexture(width, height, gl.GL_RGB, False, 0, gl.GL_RGB, gl.GL_UNSIGNED_BYTE)
+        texture = pypangolin.GlTexture(width, height, gl.GL_RGB, False, 0, gl.GL_RGB, gl.GL_UNSIGNED_BYTE)
         image = np.ones((height, width, 3), 'uint8')
 
         # axis
-        axis = pangolin.Renderable()
-        axis.Add(pangolin.Axis())
+        axis = pypangolin.Renderable()
+        axis.Add(pypangolin.Axis())
 
 
         trajectory = DynamicArray()
         camera = None
         image = None
 
-        while not pangolin.ShouldQuit():
+        while not pypangolin.ShouldQuit():
             if not self.pose_queue.empty():
                 while not self.pose_queue.empty():
                     pose = self.pose_queue.get()
@@ -96,13 +96,13 @@ class Viewer(object):
             if camera is not None:
                 gl.glLineWidth(1)
                 gl.glColor3f(0.0, 0.0, 1.0)
-                pangolin.DrawCameras(np.array([camera]), 0.5)
+                pypangolin.DrawCameras(np.array([camera]), 0.5)
 
             # show trajectory
             if len(trajectory) > 0:
                 gl.glPointSize(2)
                 gl.glColor3f(0.0, 0.0, 0.0)
-                pangolin.DrawPoints(trajectory.array())
+                pypangolin.DrawPoints(trajectory.array())
 
             # show image
             if image is not None:
@@ -111,7 +111,7 @@ class Viewer(object):
                 gl.glColor3f(1.0, 1.0, 1.0)
                 texture.RenderToViewport()
                 
-            pangolin.FinishFrame()
+            pypangolin.FinishFrame()
 
 
 

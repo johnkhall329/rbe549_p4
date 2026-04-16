@@ -237,7 +237,11 @@ class MSCKF(object):
         first few IMU readings.
         """
         # Initialize the gyro_bias given the current angular and linear velocity
-        ...
+        omegas = np.vstack([msg.angular_velocity for msg in self.imu_msg_buffer])
+        gyro_bias = omegas.mean(axis=0)
+        acc = np.vstack([msg.linear_acceleration for msg in self.imu_msg_buffer])
+        acc_bias = acc.mean(axis=0)
+
 
         # Find the gravity in the IMU frame.
         ...
