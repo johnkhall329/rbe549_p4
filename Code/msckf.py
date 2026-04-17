@@ -299,17 +299,21 @@ class MSCKF(object):
         # Get the error IMU state
         ...
         dt = time - self.state_server.imu_state.timestamp
-        new_gyro = m_gyro - self.state_server.imu_state.gyro_bias
-        new_acc = m_acc - self.state_server.imu_state.acc_bias
+        gyro = m_gyro - self.state_server.imu_state.gyro_bias
+        acc = m_acc - self.state_server.imu_state.acc_bias
         
         r = Rotation.from_quat(self.state_server.imu_state.orientation)
 
+        
+
+        # Compute discrete transition F, Q matrices in Appendix A in "MSCKF" paper
         F = np.zeros((21,21))
-        F[:3,:3] = -skew(new_gyro)
+        F[:3,:3] = -skew(gyro)
         F[:3,3:6] = -np.eye(3)
-        F[6:9,:3] = -r.as_matrix().T @ skew(new_acc)
+        F[6:9,:3] = -r.as_matrix().T @ skew(acc)
         F[6:9, 9:12] = -r.as_matrix().T
         F[12:15, 6:9] = np.eye(3)
+        Fdt = dt*F
 
         G = np.zeros((21,12))
         G[:3,:3] = -np.eye(3)
@@ -317,16 +321,12 @@ class MSCKF(object):
         G[6:9, 6:9] = -r.as_matrix().T
         G[9:12, 9:12] = np.eye(3) # the paper and the code differ here
         
-
-        # Compute discrete transition F, Q matrices in Appendix A in "MSCKF" paper
-        ...
-        
         # Approximate matrix exponential to the 3rd order, which can be 
         # considered to be accurate enough assuming dt is within 0.01s.
-        ...
+        phi = np.eye(21) + Fdt + 0.5*Fdt@Fdt + 1/6*Fdt@Fdt@Fdt
 
         # Propogate the state using 4th order Runge-Kutta
-        # self.predict_new_state(dt, gyro, acc)
+        self.predict_new_state(dt, gyro, acc)
 
         # Modify the transition matrix
         ...
@@ -347,16 +347,19 @@ class MSCKF(object):
         """
         """Propogate the state using 4th order Runge-Kutta for equstion (1) in "MSCKF" paper"""
         # compute norm of gyro
-        ...
+        gyro_norm = np.linalg.norm(gyro)
         
         # Get the Omega matrix, the equation above equation (2) in "MSCKF" paper
-        ...
+        omega = np.zeros((4,4))
+        omega[:3,:3] = -skew(gyro)
+        omega[3,:3] = -gyro
+        omega[:3,3] = gyro
         
         # Get the orientation, velocity, position
-        ...
+        q, v, p = self.state_server.imu_state.orientation, self.state_server.imu_state.velocity, self.state_server.imu_state.position
         
         # Compute the dq_dt, dq_dt2 in equation (1) in "MSCKF" paper
-        ...
+        dqdt = 0.5*omega
         
         # Apply 4th order Runge-Kutta 
         # k1 = f(tn, yn)
