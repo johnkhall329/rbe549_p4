@@ -244,13 +244,13 @@ class MSCKF(object):
         self.state_server.imu_state.gyro_bias = gyro_bias
 
         # Find the gravity in the IMU frame.
+        grav_est = acc.mean(axis=0)
         
         # Normalize the gravity and save to IMUState          
         IMUState.gravity = np.array([0,0,-np.linalg.norm(grav_est)])
 
         # Initialize the initial orientation, so that the estimation
         # is consistent with the inertial frame.
-        grav_est = acc.mean(axis=0)
         grav_rot, _ = Rotation.align_vectors(grav_est, IMUState.gravity) # may need to change initial direction
         self.state_server.imu_state.orientation = grav_rot.as_quat()
         acc_bias = grav_est-grav_rot.as_matrix()@IMUState.gravity
@@ -269,16 +269,25 @@ class MSCKF(object):
         # Execute process model.
         # Update the state info
         # Repeat until the time_bound is reached
-        ...
+        processed_count = 0
+        for imu_msg in self.imu_msg_buffer:
+
+            if imu_msg.timestamp < self.state_server.imu_state.timestamp:
+                processed_count +=1
+                continue
+            elif imu_msg.timestamp>time_bound:
+                break
+
+            self.process_model(imu_msg.timestamp, imu_msg.angular_velocity, imu_msg.linear_velocity)
+        
         
         # Set the current imu id to be the IMUState.next_id
-        ...
+        self.state_server.imu_state.id = IMUState.next_id
         
         # IMUState.next_id increments
-        ...
-
+        IMUState.next_id += 1
         # Remove all used IMU msgs.
-        ...
+        self.imu_msg_buffer = self.imu_msg_buffer[processed_count:]
 
     def process_model(self, time, m_gyro, m_acc):
         """
@@ -289,6 +298,25 @@ class MSCKF(object):
         """
         # Get the error IMU state
         ...
+        dt = time - self.state_server.imu_state.timestamp
+        new_gyro = m_gyro - self.state_server.imu_state.gyro_bias
+        new_acc = m_acc - self.state_server.imu_state.acc_bias
+        
+        r = Rotation.from_quat(self.state_server.imu_state.orientation)
+
+        F = np.zeros((21,21))
+        F[:3,:3] = -skew(new_gyro)
+        F[:3,3:6] = -np.eye(3)
+        F[6:9,:3] = -r.as_matrix().T @ skew(new_acc)
+        F[6:9, 9:12] = -r.as_matrix().T
+        F[12:15, 6:9] = np.eye(3)
+
+        G = np.zeros((21,12))
+        G[:3,:3] = -np.eye(3)
+        G[3:6,3:6] = np.eye(3)
+        G[6:9, 6:9] = -r.as_matrix().T
+        G[9:12, 9:12] = np.eye(3) # the paper and the code differ here
+        
 
         # Compute discrete transition F, Q matrices in Appendix A in "MSCKF" paper
         ...
@@ -298,7 +326,7 @@ class MSCKF(object):
         ...
 
         # Propogate the state using 4th order Runge-Kutta
-        self.predict_new_state(dt, gyro, acc)
+        # self.predict_new_state(dt, gyro, acc)
 
         # Modify the transition matrix
         ...
