@@ -342,7 +342,7 @@ class MSCKF(object):
 
         # Propogate the state covariance matrix.
         Q = phi@G@self.state_server.continuous_noise_cov@G.T@phi.T*dt
-        self.state_server.state_cov[:21,:21] = phi@self.state_server.state_cov@phi.T + Q
+        self.state_server.state_cov[:21,:21] = phi@self.state_server.state_cov[:21,:21]@phi.T + Q
 
         if len(self.state_server.cam_states) > 0:
             self.state_server.state_cov[:21,21:] = phi @ self.state_server.state_cov[:21,21:]
