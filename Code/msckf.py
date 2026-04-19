@@ -423,25 +423,48 @@ class MSCKF(object):
         Compute the state covariance matrix in equation (3) in the "MSCKF" paper.
         """
         # Get the imu_state, rotation from imu to cam0, and translation from cam0 to imu
-        ...
+        q_rot = Rotation.from_quat(self.state_server.imu_state.orientation)
+        imu_rot = self.state_server.imu_state.R_imu_cam0
+
+        cam_rot = imu_rot@q_rot.as_matrix()
+        cam_t = self.state_server.imu_state.position + q_rot.as_matrix()@self.state_server.imu_state.t_cam0_imu
 
         # Add a new camera state to the state server.
-        ...
+        cam_state =  CAMState(self.state_server.imu_state.id)
+        cam_state.timestamp = time
+        cam_state.orientation = cam_rot
+        cam_state.position = cam_t
+        cam_state.orientation_null = cam_state.orientation
+        cam_state.position_null = cam_state.position
         
 
         # Update the covariance matrix of the state.
         # To simplify computation, the matrix J below is the nontrivial block
         # Appendix B of "MSCKF" paper.
-        ...
+        J = np.zeros((6,21))
+        J[:3,:3] = imu_rot
+        J[3:6,:3] = skew(q_rot.as_matrix().T@self.state_server.imu_state.t_cam0_imu)
+        J[:3, 15:18] = np.eye(3)
+        J[3:6, 12:15] = np.eye(3)
+        J[3:6, 18:21] = np.eye(3)
 
         # Resize the state covariance matrix.
-        ...
-
+        cov_h, cov_w = self.state_server.state_cov.shape
+        new_cov = np.zeros((cov_h+6, cov_w+6))
+        new_cov[:cov_h, :cov_w] = self.state_server.state_cov
+        P11 = self.state_server.state_cov[:21,:21]
+        P12 = self.state_server.state_cov[:21, 21:]
+        
         # Fill in the augmented state covariance.
-        ...
+        jp11 = J@P11
+        jp12 = J@P12
+        new_row = np.hstack([jp11, jp12])
+        new_cov[cov_h:, :new_row.shape[1]] = new_row
+        new_cov[:new_row.shape[1], cov_w:] = new_row.T
+        new_cov[new_row.shape[1]:, new_row.shape[1]:] = J@P11@J.T
 
         # Fix the covariance to be symmetric
-        ...
+        self.state_server.state_cov = (new_cov+new_cov.T)/2
 
     def add_feature_observations(self, feature_msg):
         """
