@@ -436,6 +436,7 @@ class MSCKF(object):
         cam_state.position = cam_t
         cam_state.orientation_null = cam_state.orientation
         cam_state.position_null = cam_state.position
+        self.state_server.cam_states[self.state_server.imu_state.id] = cam_state
         
 
         # Update the covariance matrix of the state.
@@ -471,13 +472,22 @@ class MSCKF(object):
         IMPLEMENT THIS!!!!!
         """
         # get the current imu state id and number of current features
-        ...
+        curr_id = self.state_server.imu_state.id
+        len_feats = len(self.map_server)
+        tracked = 0
         
         # add all features in the feature_msg to self.map_server
-        ...
+        for feature_mes in feature_msg.features:
+            if feature_mes.id not in self.map_server:
+                feature = Feature(feature_mes.id)
+                feature.observations[curr_id] = np.array([feature_mes.u0, feature_mes.v0, feature_mes.u1, feature_mes.v1])
+                self.map_server[feature.id] = feature
+            else:
+                self.map_server[feature.id].observations[curr_id] = np.array([feature_mes.u0, feature_mes.v0, feature_mes.u1, feature_mes.v1])
+                tracked+=1
 
         # update the tracking rate
-        ...
+        tracking_rate = len_feats/tracked
 
     def measurement_jacobian(self, cam_state_id, feature_id):
         """
@@ -601,29 +611,69 @@ class MSCKF(object):
         Section III.B: by stacking multiple observations, we can compute the residuals in equation (6) in "MSCKF" paper 
         """
         # Check if H and r are empty
-        ...
+        if len(H) == 0 or len(r) == 0: return
 
         # Decompose the final Jacobian matrix to reduce computational
         # complexity.
-        ...
+        num_states = 21 + len(self.state_server.cam_states) * 6
+
+        if H.shape[0] > H.shape[1]:
+            # 2. Perform QR Decomposition
+            # We use mode='reduced' to get the thin QR 
+            # Or 'complete' if you want the full Q matrix as in the C++ code
+            Q, R = np.linalg.qr(H, mode='complete')
+            
+            # 3. Rotate the residual vector r using the same Q
+            # In Eigen: (Q.T * r).evalTo(r_temp)
+            r_temp = Q.T @ r
+            
+            # 4. Extract the "Thin" parts
+            # The compressed Jacobian is simply the non-zero part of R
+            H_thin = R[:num_states, :]
+            r_thin = r_temp[:num_states]
+        else:
+            H_thin = H
+            r_thin = r
 
         # Compute the Kalman gain.
-        ...
+        S = H_thin@self.state_server.state_cov@H_thin.T + self.config.observation_noise*np.eye(self.state_server.state_cov.shape[0])
+        K = self.state_server.state_cov@H_thin.T@np.linalg.pinv(S)
 
         # Compute the error of the state.
-        ...
+        dx = K@r_thin
         
         # Update the IMU state.
-        ...
+        d_imu = dx[:21]
+
+        dq = small_angle_quaternion(d_imu[:3])
+        new_q = dq@self.state_server.imu_state.orientation
+        new_q /= np.linalg.norm(new_q)
+        self.state_server.imu_state.orientation = new_q
+        self.state_server.imu_state.gyro_bias += d_imu[3:6]
+        self.state_server.imu_state.velocity += d_imu[6:9]
+        self.state_server.imu_state.acc_bias += d_imu[9:12]
+        self.state_server.imu_state.position += d_imu[12:15]
+
+        dq_cam = small_angle_quaternion(d_imu[15:18])
+        cam_rot = Rotation.from_quat(dq_cam)
+        new_R =  cam_rot.as_matrix()@self.state_server.imu_state.R_imu_cam0
+        self.state_server.imu_state.R_imu_cam0 = new_R
+        self.state_server.imu_state.t_cam0_imu += d_imu[18:21]
 
         # Update the camera states.
-        ...
-
+        for i, cam_state in enumerate(self.state_server.cam_states.keys()):
+            dx_cam = dx[21+(i*6):27+(i*6)]
+            dq_cam = small_angle_quaternion(dx_cam[:3])
+            new_q_cam = dq@cam_state.orientation
+            cam_state.orientation = new_q_cam
+            cam_state.position += dx_cam[3:]
+        
         # Update state covariance.
-        ...
+        I_KH = np.eye(K.shape[0], H_thin.shape[1]) - K@H_thin
+        cov = I_KH@self.state_server.state_cov
 
         # Fix the covariance to be symmetric
-        ...
+        self.state_server.state_cov = (cov+cov.T)/2
 
     def gating_test(self, H, r, dof):
         P1 = H @ self.state_server.state_cov @ H.T
