@@ -193,33 +193,33 @@ class MSCKF(object):
         # that are received before the image msg.
         self.batch_imu_processing(feature_msg.timestamp)
 
-        print('---batch_imu_processing    ', time.time() - t)
+        # print('---batch_imu_processing    ', time.time() - t)
         t = time.time()
 
         # Augment the state vector.
         self.state_augmentation(feature_msg.timestamp)
 
-        print('---state_augmentation      ', time.time() - t)
+        # print('---state_augmentation      ', time.time() - t)
         t = time.time()
 
         # Add new observations for existing features or new features 
         # in the map server.
         self.add_feature_observations(feature_msg)
 
-        print('---add_feature_observations', time.time() - t)
+        # print('---add_feature_observations', time.time() - t)
         t = time.time()
 
         # Perform measurement update if necessary.
         # And prune features and camera states.
         self.remove_lost_features()
 
-        print('---remove_lost_features    ', time.time() - t)
+        # print('---remove_lost_features    ', time.time() - t)
         t = time.time()
 
         self.prune_cam_state_buffer()
 
-        print('---prune_cam_state_buffer  ', time.time() - t)
-        print('---msckf elapsed:          ', time.time() - start, f'({feature_msg.timestamp})')
+        # print('---prune_cam_state_buffer  ', time.time() - t)
+        # print('---msckf elapsed:          ', time.time() - start, f'({feature_msg.timestamp})')
 
         try:
             # Publish the odometry.
@@ -252,8 +252,8 @@ class MSCKF(object):
         # is consistent with the inertial frame.
         grav_rot = from_two_vectors(grav_est, -IMUState.gravity) # may need to change initial direction
         self.state_server.imu_state.orientation = to_quaternion(to_rotation(grav_rot).T)
-        acc_bias = grav_est-to_rotation(grav_rot)@IMUState.gravity
-        self.state_server.imu_state.acc_bias = acc_bias
+        # acc_bias = grav_est-to_rotation(grav_rot)@IMUState.gravity
+        # self.state_server.imu_state.acc_bias = acc_bias
 
     # Filter related functions
     # (batch_imu_processing, process_model, predict_new_state)
@@ -968,6 +968,22 @@ class MSCKF(object):
         print('   position:', imu_state.position)
         print('   velocity:', imu_state.velocity)
         print()
+
+        ## SAVE TO TXT FILE FOR RMSE ATE PROCESSING
+        filename = "st_estimator_trajectory.txt"
+        
+        # Extract data for readability
+        t = imu_state.timestamp
+        p = imu_state.position
+        q = imu_state.orientation  # Assuming q is [x, y, z, w]
+        
+        # Open in append mode ('a')
+        with open(filename, 'a') as f:
+            # Format: time x y z qx qy qz qw
+            # Using .18e for high-precision scientific notation
+            line = f"{t:.18e} {p[0]:.18e} {p[1]:.18e} {p[2]:.18e} " \
+                   f"{q[0]:.18e} {q[1]:.18e} {q[2]:.18e} {q[3]:.18e}\n"
+            f.write(line)
         
         T_i_w = Isometry3d(
             to_rotation(imu_state.orientation).T,
