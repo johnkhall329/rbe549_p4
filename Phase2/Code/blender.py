@@ -9,6 +9,44 @@ argv = argv[argv.index("--") + 1:]
 pkl_path = argv[0]
 output_dir = argv[1]
 
+def apply_texture_to_plane(plane_name, image_path):
+    # 1. Get the plane object
+    plane = bpy.data.objects.get(plane_name)
+    if not plane:
+        print(f"Error: Plane '{plane_name}' not found.")
+        return
+
+    # 2. Create a new material
+    mat = bpy.data.materials.new(name="FloorMaterial")
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    
+    # 3. Clear existing nodes and add necessary ones
+    nodes.clear()
+    node_tex = nodes.new(type='ShaderNodeTexImage')
+    node_bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
+    node_out = nodes.new(type='ShaderNodeOutputMaterial')
+
+    # 4. Load the image
+    try:
+        img = bpy.data.images.load(image_path)
+        node_tex.image = img
+    except Exception as e:
+        print(f"Failed to load image: {e}")
+        return
+
+    # 5. Link the nodes together
+    links = mat.node_tree.links
+    links.new(node_tex.outputs['Color'], node_bsdf.inputs['Base Color'])
+    links.new(node_bsdf.outputs['BSDF'], node_out.inputs['Surface'])
+    
+    # 6. Assign the material to the plane
+    if plane.data.materials:
+        plane.data.materials[0] = mat
+    else:
+        plane.data.materials.append(mat)
+
+
 def render_trajectory(pkl_path, output_dir):
     # Load the trajectory data
     with open(pkl_path, 'rb') as f:
@@ -39,4 +77,8 @@ def render_trajectory(pkl_path, output_dir):
         bpy.ops.render.render(write_still=True)
 
 if __name__ == "__main__":
+    # --- Start of your existing script logic ---
+    # Set the path to your texture image
+    texture_path = "/home/wyatt/Documents/CV/P4/rbe549_p4/Phase2/Data/Textures/coast_land_rocks_01/coast_land_rocks_01_primary.png"
+    apply_texture_to_plane("Plane", texture_path)
     render_trajectory(pkl_path, output_dir)
