@@ -2,10 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
+from torchvision.models.optical_flow import raft_small, Raft_Small_Weights
+import sys
+import os
 
 import os
 
-class DeepVIO(nn.module):
+class DeepVIO(nn.Module):
     def __init__(self):
         super(DeepVIO, self).__init__()
         
@@ -30,29 +33,22 @@ class DeepVIO(nn.module):
         self.linear2.cuda()
         #self.linear3.cuda()
         
-        
-        
-        checkpoint = None
-        checkpoint_pytorch = '/notebooks/model/FlowNet2-C_checkpoint.pth.tar'
-        #checkpoint_pytorch = '/notebooks/data/model/FlowNet2-SD_checkpoint.pth.tar'
-        if os.path.isfile(checkpoint_pytorch):
-            checkpoint = torch.load(checkpoint_pytorch,\
-                                map_location=lambda storage, loc: storage.cuda(0))
-            best_err = checkpoint['best_EPE']
-        else:
-            print('No checkpoint')
+        self.flow_model = raft_small(weights=Raft_Small_Weights.DEFAULT)
+        self.flow_model.cuda()
 
+        for param in self.flow_model.parameters(): # freeze RAFT params
+            param.requires_grad = False
         
-        self.flownet_c = FlowNetC.FlowNetC(batchNorm=False)
-        self.flownet_c.load_state_dict(checkpoint['state_dict'])
-        self.flownet_c.cuda()
 
     def forward(self, image, imu, xyzQ):
         batch_size, timesteps, C, H, W = image.size()
         
-        ## Input1: Feed image pairs to FlownetC
-        c_in = image.view(batch_size, timesteps * C, H, W)
-        c_out = self.flownet_c(c_in)
+        ## Input1: Feed image pairs to RAFT
+        img1 = image[:,0,:,:,:]
+        img2 = image[:,1,:,:,:]
+        flow_list = self.flow_model(img1, img2)
+        flow_out = flow_list[-1]
+        c_out = flow_out.view(batch_size,-1)
         #print('c_out', c_out.shape)
         
         ## Input2: Feed IMU records to LSTM
@@ -79,3 +75,5 @@ class DeepVIO(nn.module):
 
         return l_out2
 
+if __name__ == '__main__':
+    net = DeepVIO()
