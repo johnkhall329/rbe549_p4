@@ -29,6 +29,8 @@ class DeepVIODataset(Dataset):
         
         # 1. Load the Trajectory Metadata (IMU data)
         imu_data = np.load(os.path.join(seq_path, 'imu_data.npy'))
+
+        gt_data = np.load(os.path.join(seq_path, 'pos_data.npy'))
             
         # 2. Load and process Images
         # Assumes images are named frame_0000.png, frame_0001.png, etc. [cite: 247]
@@ -46,9 +48,11 @@ class DeepVIODataset(Dataset):
         
         # 3. Extract IMU data (Accel and Gyro) 
         # Assumes trajectory_data is a list of dicts with 'imu' key
-        imu_tensor = torch.tensor(imu_data, dtype=torch.float32) # [Seq_Len, 6]
+        imu_tensor = torch.tensor(imu_data, dtype=torch.float32) # [Seq_Len*10, 6]
 
-        return images_tensor, imu_tensor
+        gt_tensor = torch.tensor(gt_data, dtype=torch.float32) # [Seq_Len, 7]
+
+        return images_tensor, imu_tensor, gt_tensor
 
 # --- Example Usage ---
 
@@ -67,10 +71,10 @@ dataset = DeepVIODataset(root_dir="Phase2/Data/Trajectories", sequence_length=30
 dataloader = DataLoader(dataset, batch_size=2, shuffle=True, num_workers=2)
 
 # Training Loop Preview
-for i, (images, imu) in enumerate(dataloader):
+for i, (images, imu, gt) in enumerate(dataloader):
     # images shape: [Batch, Seq_Len, C, H, W]
     # imu shape: [Batch, Seq_Len, 6]
-    print(f"Batch {i} - Images: {images.shape}, IMU: {imu.shape}")
+    print(f"Batch {i} - Images: {images.shape}, IMU: {imu.shape}, GT: {gt.shape}")
     
     # Forward pass through your VINet architecture...
     break

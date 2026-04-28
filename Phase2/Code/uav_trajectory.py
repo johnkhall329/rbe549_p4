@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.spatial.transform import Rotation as R
 
 IMAGE_CAPTURE_MULTIPLIER = 10
 
@@ -47,7 +48,8 @@ class UAVTrajectoryGenerator:
         vel_vec = (end - start) / duration
         
         imu_acc = np.zeros((datapoints, 3))
-        imu_angles = np.zeros((datapoints, 3))
+        angle_vec = np.zeros((datapoints, 3))
+        quat_pos_vec = np.zeros((datapoints, 4))
 
         ret_list = []
         for i, t in enumerate(times):
@@ -56,16 +58,26 @@ class UAVTrajectoryGenerator:
             imu_acc[i] = acc_vec
             state = self._compute_uav_state(t, pos_vec, vel_vec, acc_vec)
             rpy = np.array([state['roll'], state['pitch'], state['yaw']])
-            imu_angles[i] = rpy
+            angle_vec[i] = rpy
+
+            # Create a rotation object from Euler angles (ZYX order)
+            r = R.from_euler('zyx', rpy[::-1], degrees=False)
+            quat = r.as_quat() # Returns [x, y, z, w]
+            quat_pos_vec[i] = quat
 
             if i % IMAGE_CAPTURE_MULTIPLIER == 0:
                 ret_list.append(state)
 
-        imu_gyro = np.gradient(imu_angles, dt, axis=0)
+        gyro_vec = np.gradient(angle_vec, dt, axis=0)
         
-        imu_data = generate_imu_data_np(imu_acc, imu_gyro, frequency)
+        imu_data = generate_imu_data_np(imu_acc, gyro_vec, frequency)
 
-        return ret_list, imu_data
+        gt_data = np.zeros((datapoints, 7))
+
+        gt_data[:, :3] = pos_vec
+        gt_data[:, 3:] = quat_pos_vec
+
+        return ret_list, imu_data, gt_data
 
     def generate_circle(self, duration, frequency, radius=5.0, z_height=10.0, speed=0.5):
         dt = 1.0 / frequency

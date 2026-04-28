@@ -51,10 +51,13 @@ def main():
         os.makedirs(args.output_dir + f'/{i}_traj', exist_ok=True)
         # 1. Generate Trajectory and IMU Data [cite: 10, 31]
         s, e = generate_start_end_points()
-        trajectory, imu_data = generator.generate_line(duration=3, frequency=100, start=s, end=e)
+        trajectory, imu_data, gt_data = generator.generate_line(duration=3, frequency=500, start=s, end=e)
 
         with open(args.output_dir + f'/{i}_traj/imu_data.npy', 'wb') as f:
             np.save(f, imu_data)
+
+        with open(args.output_dir + f'/{i}_traj/pos_data.npy', 'wb') as f:
+            np.save(f, gt_data)
 
         # 2. Save to Pickle [cite: 4]
         pkl_path = os.path.abspath("Phase2/Data/trajectory.pkl")
