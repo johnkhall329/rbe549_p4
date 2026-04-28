@@ -47,24 +47,30 @@ class UAVTrajectoryGenerator:
         start, end = np.array(start), np.array(end)
         vel_vec = (end - start) / duration
         
-        imu_acc = np.zeros((datapoints, 3))
         angle_vec = np.zeros((datapoints, 3))
+        all_pos_vec = np.zeros((datapoints, 3))
+        imu_acc = np.zeros((datapoints, 3))
         quat_pos_vec = np.zeros((datapoints, 4))
 
         ret_list = []
         for i, t in enumerate(times):
             pos_vec = start + vel_vec * t
             acc_vec = np.zeros(3)
-            imu_acc[i] = acc_vec
             state = self._compute_uav_state(t, pos_vec, vel_vec, acc_vec)
             rpy = np.array([state['roll'], state['pitch'], state['yaw']])
-            angle_vec[i] = rpy
 
             # Create a rotation object from Euler angles (ZYX order)
             r = R.from_euler('zyx', rpy[::-1], degrees=False)
             quat = r.as_quat() # Returns [x, y, z, w]
+
+
+            # Save Important Data
+            imu_acc[i] = acc_vec
+            angle_vec[i] = rpy
+            all_pos_vec[i] = pos_vec
             quat_pos_vec[i] = quat
 
+            # Save camera trajectory
             if i % IMAGE_CAPTURE_MULTIPLIER == 0:
                 ret_list.append(state)
 
@@ -74,7 +80,7 @@ class UAVTrajectoryGenerator:
 
         gt_data = np.zeros((datapoints, 7))
 
-        gt_data[:, :3] = pos_vec
+        gt_data[:, :3] = all_pos_vec
         gt_data[:, 3:] = quat_pos_vec
 
         return ret_list, imu_data, gt_data

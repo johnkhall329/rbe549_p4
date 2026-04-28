@@ -10,8 +10,8 @@ import random
 def generate_start_end_points(min_dist=1.0):
     # Define your workspace bounds
     # x: 0-10, y: 0-10, z: 1-10
-    low = np.array([-3, -3, 2])
-    high = np.array([3, 3, 6])
+    low = np.array([-5, -5, 3])
+    high = np.array([5, 5, 8])
     
     while True:
         # Generate random start and end points within bounds
@@ -32,7 +32,7 @@ def main():
     parser.add_argument("--base_blender_scene", default="Phase2/Blender/test_scene.blend")
     parser.add_argument("--output_dir", default="Phase2/Data/Trajectories")
     parser.add_argument("--headless", action="store_true", default=True)
-    parser.add_argument("--num_samples", default=3)
+    parser.add_argument("--num_samples", default=10)
     parser.add_argument("--texture_dir", default="Phase2/Data/Redlands - Packing House District/Images")
     args = parser.parse_args()
 
@@ -51,7 +51,7 @@ def main():
         os.makedirs(args.output_dir + f'/{i}_traj', exist_ok=True)
         # 1. Generate Trajectory and IMU Data [cite: 10, 31]
         s, e = generate_start_end_points()
-        trajectory, imu_data, gt_data = generator.generate_line(duration=3, frequency=500, start=s, end=e)
+        trajectory, imu_data, gt_data = generator.generate_line(duration=3, frequency=1000, start=s, end=e)
 
         with open(args.output_dir + f'/{i}_traj/imu_data.npy', 'wb') as f:
             np.save(f, imu_data)
