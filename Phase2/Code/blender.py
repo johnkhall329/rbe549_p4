@@ -8,6 +8,8 @@ argv = sys.argv
 argv = argv[argv.index("--") + 1:]
 pkl_path = argv[0]
 output_dir = argv[1]
+texture_path = argv[2]
+traj_folder = argv[3]
 
 def apply_texture_to_plane(plane_name, image_path):
     # 1. Get the plane object
@@ -69,7 +71,7 @@ def render_trajectory(pkl_path, output_dir):
         
         # Set output path for this specific frame
         frame_name = f"frame_{i:04d}.png"
-        render_path = os.path.join(output_dir, frame_name)
+        render_path = os.path.join(output_dir, traj_folder, frame_name)
         bpy.context.scene.render.filepath = render_path
         
         # Render the frame 
@@ -79,6 +81,6 @@ def render_trajectory(pkl_path, output_dir):
 if __name__ == "__main__":
     # --- Start of your existing script logic ---
     # Set the path to your texture image
-    texture_path = "/home/wyatt/Documents/CV/P4/rbe549_p4/Phase2/Data/Textures/coast_land_rocks_01/coast_land_rocks_01_primary.png"
+    # texture_path = "/home/wyatt/Documents/CV/P4/rbe549_p4/Phase2/Data/Textures/coast_land_rocks_01/coast_land_rocks_01_primary.png"
     apply_texture_to_plane("Plane", texture_path)
     render_trajectory(pkl_path, output_dir)

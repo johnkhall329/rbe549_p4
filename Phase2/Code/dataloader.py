@@ -1,0 +1,76 @@
+import torch
+from torch.utils.data import Dataset, DataLoader
+import os
+import pickle
+from PIL import Image
+import torchvision.transforms as transforms
+import numpy as np
+
+class DeepVIODataset(Dataset):
+    def __init__(self, root_dir, sequence_length=10, transform=None):
+        """
+        Args:
+            root_dir (string): Directory with all the sequence subfolders.
+            sequence_length (int): Number of frames in a sliding window.
+            transform (callable, optional): Optional transform to be applied on a sample.
+        """
+        self.root_dir = root_dir
+        self.sequence_length = sequence_length
+        self.transform = transform
+        # List all sequence folders (e.g., 'seq_0', 'seq_1', etc.)
+        self.sequences = [os.path.join(root_dir, d) for d in os.listdir(root_dir) 
+                          if os.path.isdir(os.path.join(root_dir, d))]
+        
+    def __len__(self):
+        return len(self.sequences)
+
+    def __getitem__(self, idx):
+        seq_path = self.sequences[idx]
+        
+        # 1. Load the Trajectory Metadata (IMU data)
+        imu_data = np.load(os.path.join(seq_path, 'imu_data.npy'))
+            
+        # 2. Load and process Images
+        # Assumes images are named frame_0000.png, frame_0001.png, etc. [cite: 247]
+        image_sequence = []
+        for i in range(self.sequence_length):
+            img_name = os.path.join(seq_path, f"frame_{i:04d}.png")
+            image = Image.open(img_name).convert('RGB')
+            
+            if self.transform:
+                image = self.transform(image)
+            image_sequence.append(image)
+            
+        # Stack images into a tensor: [Seq_Len, Channels, H, W]
+        images_tensor = torch.stack(image_sequence)
+        
+        # 3. Extract IMU data (Accel and Gyro) 
+        # Assumes trajectory_data is a list of dicts with 'imu' key
+        imu_tensor = torch.tensor(imu_data, dtype=torch.float32) # [Seq_Len, 6]
+
+        return images_tensor, imu_tensor
+
+# --- Example Usage ---
+
+# Define basic image transformations
+data_transforms = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
+
+# Initialize the dataset
+dataset = DeepVIODataset(root_dir="Phase2/Data/Trajectories", sequence_length=30, transform=data_transforms)
+
+# Initialize the DataLoader
+# batch_first=True is standard for your VINet LSTM training 
+dataloader = DataLoader(dataset, batch_size=2, shuffle=True, num_workers=2)
+
+# Training Loop Preview
+for i, (images, imu) in enumerate(dataloader):
+    # images shape: [Batch, Seq_Len, C, H, W]
+    # imu shape: [Batch, Seq_Len, 6]
+    print(f"Batch {i} - Images: {images.shape}, IMU: {imu.shape}")
+    
+    # Forward pass through your VINet architecture...
+    break

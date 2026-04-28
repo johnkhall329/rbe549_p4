@@ -1,6 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+IMAGE_CAPTURE_MULTIPLIER = 10
+
+from imu_gen import generate_imu_data_np
+
 class UAVTrajectoryGenerator:
     def __init__(self, gravity=9.81):
         self.gravity = gravity
@@ -38,10 +42,30 @@ class UAVTrajectoryGenerator:
     def generate_line(self, duration, frequency, start=(0,0,1), end=(10,10,10)):
         dt = 1.0 / frequency
         times = np.arange(0, duration, dt)
+        datapoints = frequency*duration
         start, end = np.array(start), np.array(end)
         vel_vec = (end - start) / duration
         
-        return [self._compute_uav_state(t, start + vel_vec * t, vel_vec, np.zeros(3)) for t in times]
+        imu_acc = np.zeros((datapoints, 3))
+        imu_angles = np.zeros((datapoints, 3))
+
+        ret_list = []
+        for i, t in enumerate(times):
+            pos_vec = start + vel_vec * t
+            acc_vec = np.zeros(3)
+            imu_acc[i] = acc_vec
+            state = self._compute_uav_state(t, pos_vec, vel_vec, acc_vec)
+            rpy = np.array([state['roll'], state['pitch'], state['yaw']])
+            imu_angles[i] = rpy
+
+            if i % IMAGE_CAPTURE_MULTIPLIER == 0:
+                ret_list.append(state)
+
+        imu_gyro = np.gradient(imu_angles, dt, axis=0)
+        
+        imu_data = generate_imu_data_np(imu_acc, imu_gyro, frequency)
+
+        return ret_list, imu_data
 
     def generate_circle(self, duration, frequency, radius=5.0, z_height=10.0, speed=0.5):
         dt = 1.0 / frequency
@@ -209,11 +233,11 @@ def visualize_trajectory_3d(states):
 if __name__ == "__main__":
     generator = UAVTrajectoryGenerator()
     # Generate a 20-second trajectory at 24 Hz (Standard Blender film frame rate)
-    trajectory_8 = generator.generate_figure8(duration=20, frequency=24, speed=0.4)
-    trajectory_l = generator.generate_line(duration=20, frequency=24)
-    trajectory_c = generator.generate_circle(duration=20, frequency=24)
-    trajectory_s = generator.generate_square(duration=20, frequency=24)
-    trajectory_cc = generator.generate_circle_changing_height(duration=20, frequency=24)
-    
+    # trajectory_8, _ = generator.generate_figure8(duration=20, frequency=24, speed=0.4)
+    trajectory_l, _ = generator.generate_line(duration=10, frequency=1000)
+    # trajectory_c, _ = generator.generate_circle(duration=20, frequency=24)
+    # trajectory_s, _ = generator.generate_square(duration=20, frequency=24)
+    # trajectory_cc, _ = generator.generate_circle_changing_height(duration=20, frequency=24)
 
-    visualize_trajectory_3d(trajectory_cc)
+
+    visualize_trajectory_3d(trajectory_l)
