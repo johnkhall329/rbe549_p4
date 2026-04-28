@@ -53,28 +53,3 @@ class DeepVIODataset(Dataset):
         gt_tensor = torch.tensor(gt_data, dtype=torch.float32) # [Seq_Len, 7]
 
         return images_tensor, imu_tensor, gt_tensor
-
-# # --- Example Usage ---
-
-# # Define basic image transformations
-# data_transforms = transforms.Compose([
-#     transforms.Resize((224, 224)),
-#     transforms.ToTensor(),
-#     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-# ])
-
-# # Initialize the dataset
-# dataset = DeepVIODataset(root_dir="Phase2/Data/Trajectories", sequence_length=300, transform=data_transforms)
-
-# # Initialize the DataLoader
-# # batch_first=True is standard for your VINet LSTM training 
-# dataloader = DataLoader(dataset, batch_size=2, shuffle=True, num_workers=2)
-
-# # Training Loop Preview
-# for i, (images, imu, gt) in enumerate(dataloader):
-#     # images shape: [Batch, Seq_Len, C, H, W]
-#     # imu shape: [Batch, Seq_Len, 6]
-#     print(f"Batch {i} - Images: {images.shape}, IMU: {imu.shape}, GT: {gt.shape}")
-    
-#     # Forward pass through your VINet architecture...
-#     break

@@ -34,10 +34,12 @@ class UAVTrajectoryGenerator:
         roll = np.arctan2(R[2, 1], R[2, 2])
         actual_yaw = np.arctan2(R[1, 0], R[0, 0])
 
+        accel_body = R.T @ thrust_vec
+
         return {
             'time': round(t, 4),
             'x': pos[0], 'y': pos[1], 'z': pos[2],
-            'roll': roll, 'pitch': pitch, 'yaw': actual_yaw
+            'roll': roll, 'pitch': pitch, 'yaw': actual_yaw, 'accel': accel_body
         }
 
     def generate_line(self, duration, frequency, start=(0,0,1), end=(10,10,10)):
@@ -63,9 +65,8 @@ class UAVTrajectoryGenerator:
             r = R.from_euler('zyx', rpy[::-1], degrees=False)
             quat = r.as_quat() # Returns [x, y, z, w]
 
-
             # Save Important Data
-            imu_acc[i] = acc_vec
+            imu_acc[i] = state['accel']
             angle_vec[i] = rpy
             all_pos_vec[i] = pos_vec
             quat_pos_vec[i] = quat
