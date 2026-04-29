@@ -1,0 +1,7 @@
+torch==2.4
+torchvision
+torchcodec==0.0.3
+tqdm
+numpy
+matplotlib
+av

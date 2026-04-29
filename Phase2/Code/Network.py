@@ -125,7 +125,7 @@ if __name__ == '__main__':
     net = DeepVIO(model_type=2)
     net = net.to(device)
 
-    img = torch.randn((2,2,3,520,960), device=device) # Width and Weight may change
+    img = torch.randn((2,2,3,520,960), device=device) # Width and Height may change
     imu = torch.randn((2,10,6), device=device)
     xyzQ = torch.randn((2,1,7), device=device)
 
