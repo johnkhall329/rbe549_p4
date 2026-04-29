@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib
+matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
 
@@ -173,8 +174,16 @@ class UAVTrajectoryGenerator:
         dt = 1.0 / frequency
         times = np.arange(0, duration, dt)
         states = []
+
+        datapoints = len(times)
         
-        for t in times:
+        # Pre-allocate arrays for efficiency
+        angle_vec = np.zeros((datapoints, 3))
+        all_pos_vec = np.zeros((datapoints, 3))
+        imu_acc = np.zeros((datapoints, 3))
+        quat_pos_vec = np.zeros((datapoints, 4))
+        
+        for i, t in enumerate(times):
             # 1. Position: Standard circle for XY, Sine wave for Z
             pos = np.array([
                 radius * np.cos(speed * t), 
@@ -197,9 +206,34 @@ class UAVTrajectoryGenerator:
             ])
             
             # Use the modular physics solver to calculate Euler angles [cite: 11, 27]
-            states.append(self._compute_uav_state(t, pos, vel, acc))
-            
-        return states
+            state = self._compute_uav_state(t, pos, vel, acc)
+            # Save camera trajectory
+            if i % IMAGE_CAPTURE_MULTIPLIER == 0:
+                states.append(state)
+
+            rpy = np.array([state['roll'], state['pitch'], state['yaw']])
+            # Convert ZYX Euler angles to Quaternion [cite: 546, 547]
+            r = R.from_euler('zyx', rpy[::-1], degrees=False)
+            quat = r.as_quat() # Returns [x, y, z, w]
+
+            # Store data for return
+            imu_acc[i] = state['accel']
+            angle_vec[i] = rpy
+            all_pos_vec[i] = pos
+            quat_pos_vec[i] = quat
+
+        # Compute angular velocity (gyro) from orientation changes 
+        gyro_vec = np.gradient(angle_vec, dt, axis=0)
+        
+        # Generate IMU format for training [cite: 509]
+        imu_data = generate_imu_data_np(imu_acc, gyro_vec, frequency)
+
+        # Ground Truth data (Position + Quaternion)
+        gt_data = np.zeros((datapoints, 7))
+        gt_data[:, :3] = all_pos_vec
+        gt_data[:, 3:] = quat_pos_vec
+
+        return states, imu_data, gt_data
 
     def generate_figure8(self, duration, frequency, radius_x=5.0, radius_y=5.0, z_height=10.0, speed=0.5):
         dt = 1.0 / frequency
@@ -319,10 +353,9 @@ if __name__ == "__main__":
     generator = UAVTrajectoryGenerator()
     # Generate a 20-second trajectory at 24 Hz (Standard Blender film frame rate)
     # trajectory_8, _ = generator.generate_figure8(duration=20, frequency=24, speed=0.4)
-    trajectory_l, _, _ = generator.generate_polynomial_line(duration=10, frequency=1000)
+    # trajectory_l, _, _ = generator.generate_polynomial_line(duration=8, frequency=1000)
     # trajectory_c, _ = generator.generate_circle(duration=20, frequency=24)
     # trajectory_s, _ = generator.generate_square(duration=20, frequency=24)
-    # trajectory_cc, _ = generator.generate_circle_changing_height(duration=20, frequency=24)
+    trajectory_cc, imu_data, gt = generator.generate_circle_changing_height(duration=20, frequency=240)
 
-
-    visualize_trajectory_3d(trajectory_l)
+    visualize_trajectory_3d(trajectory_cc)
