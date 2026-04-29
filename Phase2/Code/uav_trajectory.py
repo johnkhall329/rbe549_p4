@@ -98,10 +98,10 @@ class UAVTrajectoryGenerator:
         dist_vec = end - start
         
         # Pre-allocate arrays for efficiency
-        angle_vec = np.zeros((datapoints, 3))
-        all_pos_vec = np.zeros((datapoints, 3))
         imu_acc = np.zeros((datapoints, 3))
-        quat_pos_vec = np.zeros((datapoints, 4))
+        angle_vec = np.zeros((datapoints, 3))
+        all_pos_vec = np.zeros((datapoints//IMAGE_CAPTURE_MULTIPLIER, 3))
+        quat_pos_vec = np.zeros((datapoints//IMAGE_CAPTURE_MULTIPLIER, 4))
 
         ret_list = []
         for i, t in enumerate(times):
@@ -122,21 +122,23 @@ class UAVTrajectoryGenerator:
             acc_vec = dist_vec * dds
 
             # Compute physics-based UAV state (roll, pitch, yaw) [cite: 524]
-            state = self._compute_uav_state(t, pos_vec, vel_vec, acc_vec)
+            yaw = np.arctan2(dist_vec[1], dist_vec[0])
+            state = self._compute_uav_state(t, pos_vec, vel_vec, acc_vec, yaw=yaw)
             rpy = np.array([state['roll'], state['pitch'], state['yaw']])
-
-            # Convert ZYX Euler angles to Quaternion [cite: 546, 547]
-            r = R.from_euler('zyx', rpy[::-1], degrees=False)
-            quat = r.as_quat() # Returns [x, y, z, w]
 
             # Store data for return
             imu_acc[i] = state['accel']
-            angle_vec[i] = rpy
-            all_pos_vec[i] = pos_vec
-            quat_pos_vec[i] = quat
+            angle_vec[i] = rpy 
 
             # Selective capture for Blender visualization [cite: 526, 548]
             if i % IMAGE_CAPTURE_MULTIPLIER == 0:
+                # Convert ZYX Euler angles to Quaternion [cite: 546, 547]
+                r = R.from_euler('zyx', rpy[::-1], degrees=False)
+                quat = r.as_quat() # Returns [x, y, z, w]
+
+                all_pos_vec[i//IMAGE_CAPTURE_MULTIPLIER] = pos_vec
+                quat_pos_vec[i//IMAGE_CAPTURE_MULTIPLIER] = quat
+
                 ret_list.append(state)
 
         # Compute angular velocity (gyro) from orientation changes 
@@ -146,7 +148,7 @@ class UAVTrajectoryGenerator:
         imu_data = generate_imu_data_np(imu_acc, gyro_vec, frequency)
 
         # Ground Truth data (Position + Quaternion)
-        gt_data = np.zeros((datapoints, 7))
+        gt_data = np.zeros((datapoints//IMAGE_CAPTURE_MULTIPLIER, 7))
         gt_data[:, :3] = all_pos_vec
         gt_data[:, 3:] = quat_pos_vec
 
@@ -353,9 +355,58 @@ if __name__ == "__main__":
     generator = UAVTrajectoryGenerator()
     # Generate a 20-second trajectory at 24 Hz (Standard Blender film frame rate)
     # trajectory_8, _ = generator.generate_figure8(duration=20, frequency=24, speed=0.4)
-    # trajectory_l, _, _ = generator.generate_polynomial_line(duration=8, frequency=1000)
+    trajectory_l, imu_data, gt = generator.generate_polynomial_line(duration=5, frequency=100, start=(5, 5, 5), end=(-5, -5, 6))
     # trajectory_c, _ = generator.generate_circle(duration=20, frequency=24)
     # trajectory_s, _ = generator.generate_square(duration=20, frequency=24)
-    trajectory_cc, imu_data, gt = generator.generate_circle_changing_height(duration=20, frequency=240)
+    # trajectory_cc, imu_data, gt = generator.generate_circle_changing_height(duration=20, frequency=240)
 
-    visualize_trajectory_3d(trajectory_cc)
+    visualize_trajectory_3d(trajectory_l)
+
+    time = np.linspace(0, 5, len(gt))
+
+    fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+
+    # # Subplot 1: Gyroscope Data (XYZ rates)
+    # axes[0].plot(time, imu_data[:, 3], label='Gyro X')
+    # axes[0].plot(time, imu_data[:, 4], label='Gyro Y')
+    # axes[0].plot(time, imu_data[:, 5], label='Gyro Z')
+    # axes[0].set_ylabel('Angular Velocity (rad/s)')
+    # axes[0].set_title('IMU Gyroscope Data')
+    # axes[0].legend(loc='upper right')
+    # axes[0].grid(True)
+
+    # # Subplot 2: Position over time
+    # axes[1].plot(time, imu_data[:, 0], label='X')
+    # axes[1].plot(time, imu_data[:, 1], label='Y')
+    # axes[1].plot(time, imu_data[:, 2], label='Z')
+    # axes[1].set_ylabel('Acc (m/s^2)')
+    # axes[1].set_xlabel('Time (s)')
+    # axes[1].set_title('Ground Truth Acceleromer')
+    # axes[1].legend(loc='upper right')
+    # axes[1].grid(True)
+
+    # plt.tight_layout()
+    # plt.show()
+
+    # Subplot 1: Gyroscope Data (XYZ rates)
+    axes[0].plot(time, gt[:, 3], label='quat1')
+    axes[0].plot(time, gt[:, 4], label='quat2')
+    axes[0].plot(time, gt[:, 5], label='quat3')
+    axes[0].plot(time, gt[:, 6], label='quat4')
+    axes[0].set_ylabel('angle')
+    axes[0].set_title('gt ang')
+    axes[0].legend(loc='upper right')
+    axes[0].grid(True)
+
+    # Subplot 2: Position over time
+    axes[1].plot(time, gt[:, 0], label='X')
+    axes[1].plot(time, gt[:, 1], label='Y')
+    axes[1].plot(time, gt[:, 2], label='Z')
+    axes[1].set_ylabel('Acc (m/s^2)')
+    axes[1].set_xlabel('Time (s)')
+    axes[1].set_title('Ground Truth Position')
+    axes[1].legend(loc='upper right')
+    axes[1].grid(True)
+
+    plt.tight_layout()
+    plt.show()

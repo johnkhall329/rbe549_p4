@@ -50,7 +50,7 @@ def apply_texture_to_plane(plane_name, image_path):
         plane.data.materials.append(mat)
 
 
-def render_trajectory():
+def render_trajectory(storage_efficient=True):
     with open(os.path.join(output_dir, traj_folder, 'trajectory.pkl'), 'rb') as f:
         trajectory = pickle.load(f)
 
@@ -88,13 +88,14 @@ def render_trajectory():
         '-c:v', 'libx264', '-pix_fmt', 'yuv420p', video_output
     ]
     
-    try:
-        subprocess.run(ffmpeg_cmd, check=True)
-        print(f"Video saved. Cleaning up temporary frames...")
-        # DELETE the temp folder and all PNGs inside
-        shutil.rmtree(temp_frame_dir) 
-    except Exception as e:
-        print(f"Error during video creation/cleanup: {e}")
+    if storage_efficient:
+        try:
+            subprocess.run(ffmpeg_cmd, check=True)
+            print(f"Video saved. Cleaning up temporary frames...")
+            # DELETE the temp folder and all PNGs inside
+            shutil.rmtree(temp_frame_dir) 
+        except Exception as e:
+            print(f"Error during video creation/cleanup: {e}")
 
 if __name__ == "__main__":
     # --- Start of your existing script logic ---
