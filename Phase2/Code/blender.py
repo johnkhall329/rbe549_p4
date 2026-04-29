@@ -2,6 +2,8 @@ import bpy
 import pickle
 import sys
 import os
+import subprocess # Add this at the top
+import shutil
 
 # Get arguments after "--" [cite: 40]
 argv = sys.argv
@@ -49,18 +51,19 @@ def apply_texture_to_plane(plane_name, image_path):
 
 
 def render_trajectory():
-    # Load the trajectory data
     with open(os.path.join(output_dir, traj_folder, 'trajectory.pkl'), 'rb') as f:
         trajectory = pickle.load(f)
 
-    # Ensure we have the correct camera [cite: 82, 137]
     cam = bpy.data.objects.get('Camera')
+
     if not cam:
         print("Error: No object named 'Camera' found!")
         return
 
+    temp_frame_dir = os.path.join(output_dir, traj_folder, "temp_frames")
+    os.makedirs(temp_frame_dir, exist_ok=True)
+
     bpy.context.scene.camera = cam
-    # Set rotation mode to match trajectory generator 
     cam.rotation_mode = 'ZYX' 
 
     for i, state in enumerate(trajectory):
@@ -70,12 +73,28 @@ def render_trajectory():
         
         # Set output path for this specific frame
         frame_name = f"frame_{i:04d}.png"
-        render_path = os.path.join(output_dir, traj_folder, frame_name)
+        render_path = os.path.join(temp_frame_dir, frame_name)
         bpy.context.scene.render.filepath = render_path
         
         # Render the frame 
         print(f"Rendering {frame_name}...")
         bpy.ops.render.render(write_still=True)
+
+    video_output = os.path.join(output_dir, traj_folder, "trajectory_video.mp4")
+    
+    ffmpeg_cmd = [
+        'ffmpeg', '-y', '-framerate', '100', 
+        '-i', os.path.join(temp_frame_dir, 'frame_%04d.png'),
+        '-c:v', 'libx264', '-pix_fmt', 'yuv420p', video_output
+    ]
+    
+    try:
+        subprocess.run(ffmpeg_cmd, check=True)
+        print(f"Video saved. Cleaning up temporary frames...")
+        # DELETE the temp folder and all PNGs inside
+        shutil.rmtree(temp_frame_dir) 
+    except Exception as e:
+        print(f"Error during video creation/cleanup: {e}")
 
 if __name__ == "__main__":
     # --- Start of your existing script logic ---

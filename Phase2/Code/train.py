@@ -21,8 +21,7 @@ def train(args):
     # Define basic image transformations
     data_transforms = transforms.Compose([
         transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
     dataset = DeepVIODataset(root_dir="Phase2/Data/Trajectories", sequence_length=SEQUENCE_LENGTH, transform=data_transforms)
@@ -62,7 +61,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', type=int, default=2, 
         help='0: VO, 1: IO, 2: VIO.')
-    parser.add_argument('--batch_size', type=int, default=4)
+    parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--epochs', type=int, default=4)
     parser.add_argument('--l_rate', type=float, default=1e-4)
     args = parser.parse_args()

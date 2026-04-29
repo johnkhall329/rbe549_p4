@@ -7,3 +7,8 @@ to download the ground textures:
 
 
 IMU data generation done with code from Oystersim in ImuUtils.py: https://github.com/prgumd/Oystersim/blob/master/code/ImuUtils.py
+
+
+video processing:
+
+`pip install av`
