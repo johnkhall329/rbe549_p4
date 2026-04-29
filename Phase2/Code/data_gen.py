@@ -44,7 +44,7 @@ def main():
     
     # generate list of randomly sampled textures
     all_files = os.listdir(args.texture_dir)
-    sampled_paths = random.sample(all_files, args.num_samples)
+    sampled_paths = random.choices(all_files, k=args.num_samples)
     
     for i, path in enumerate(sampled_paths):
         
