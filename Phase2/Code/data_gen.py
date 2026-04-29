@@ -52,16 +52,16 @@ def main():
         # 1. Generate Trajectory and IMU Data [cite: 10, 31]
         s, e = generate_start_end_points()
         trajectory, imu_data, gt_data = generator.generate_line(duration=3, frequency=100, start=s, end=e)
+        # trajectory, imu_data, gt_data = generator.generate_circle_changing_height(duration=5, frequency=100, z_base=8)
 
+        # 2. Save to Pickle and Numpy [cite: 4]
         with open(args.output_dir + f'/{i}_traj/imu_data.npy', 'wb') as f:
             np.save(f, imu_data)
 
         with open(args.output_dir + f'/{i}_traj/pos_data.npy', 'wb') as f:
             np.save(f, gt_data)
-
-        # 2. Save to Pickle [cite: 4]
-        pkl_path = os.path.abspath("Phase2/Data/trajectory.pkl")
-        with open(pkl_path, 'wb') as f:
+        
+        with open(args.output_dir + f'/{i}_traj/trajectory.pkl', 'wb') as f:
             pickle.dump(trajectory, f)
 
         # 3. Call Blender [cite: 16, 42]
@@ -70,7 +70,7 @@ def main():
             args.base_blender_scene,
             "-b" if args.headless else "", # Background flag [cite: 43, 70]
             "-P", "Phase2/Code/blender.py",
-            "--", pkl_path, args.output_dir, os.path.join(args.texture_dir, path), f"{i}_traj"
+            "--", args.output_dir, os.path.join(args.texture_dir, path), f"{i}_traj"
         ]
         # # Remove empty strings if not headless
         # cmd = [c for c in cmd if c]

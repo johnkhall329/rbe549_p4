@@ -6,10 +6,9 @@ import os
 # Get arguments after "--" [cite: 40]
 argv = sys.argv
 argv = argv[argv.index("--") + 1:]
-pkl_path = argv[0]
-output_dir = argv[1]
-texture_path = argv[2]
-traj_folder = argv[3]
+output_dir = argv[0]
+texture_path = argv[1]
+traj_folder = argv[2]
 
 def apply_texture_to_plane(plane_name, image_path):
     # 1. Get the plane object
@@ -49,9 +48,9 @@ def apply_texture_to_plane(plane_name, image_path):
         plane.data.materials.append(mat)
 
 
-def render_trajectory(pkl_path, output_dir):
+def render_trajectory():
     # Load the trajectory data
-    with open(pkl_path, 'rb') as f:
+    with open(os.path.join(output_dir, traj_folder, 'trajectory.pkl'), 'rb') as f:
         trajectory = pickle.load(f)
 
     # Ensure we have the correct camera [cite: 82, 137]
@@ -83,4 +82,4 @@ if __name__ == "__main__":
     # Set the path to your texture image
     # texture_path = "/home/wyatt/Documents/CV/P4/rbe549_p4/Phase2/Data/Textures/coast_land_rocks_01/coast_land_rocks_01_primary.png"
     apply_texture_to_plane("Plane", texture_path)
-    render_trajectory(pkl_path, output_dir)
+    render_trajectory()
