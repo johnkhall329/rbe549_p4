@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
 
@@ -81,6 +82,70 @@ class UAVTrajectoryGenerator:
 
         gt_data = np.zeros((datapoints, 7))
 
+        gt_data[:, :3] = all_pos_vec
+        gt_data[:, 3:] = quat_pos_vec
+
+        return ret_list, imu_data, gt_data
+    
+    import numpy as np
+
+    def generate_polynomial_line(self, duration, frequency, start=(0,0,1), end=(10,10,10)):
+        dt = 1.0 / frequency
+        times = np.arange(0, duration, dt)
+        datapoints = len(times)
+        start, end = np.array(start), np.array(end)
+        dist_vec = end - start
+        
+        # Pre-allocate arrays for efficiency
+        angle_vec = np.zeros((datapoints, 3))
+        all_pos_vec = np.zeros((datapoints, 3))
+        imu_acc = np.zeros((datapoints, 3))
+        quat_pos_vec = np.zeros((datapoints, 4))
+
+        ret_list = []
+        for i, t in enumerate(times):
+            # Normalized time (0 to 1)
+            tau = t / duration
+            
+            # Quintic polynomial for smooth transition (Minimum Jerk Trajectory)
+            # s(tau) = 10*tau^3 - 15*tau^4 + 6*tau^5
+            s = 10 * tau**3 - 15 * tau**4 + 6 * tau**5
+            # First derivative (velocity scaling)
+            ds = (30 * tau**2 - 60 * tau**3 + 30 * tau**4) / duration
+            # Second derivative (acceleration scaling)
+            dds = (60 * tau - 180 * tau**2 + 120 * tau**3) / (duration**2)
+
+            # Calculate 3D state based on the polynomial scaling
+            pos_vec = start + dist_vec * s
+            vel_vec = dist_vec * ds
+            acc_vec = dist_vec * dds
+
+            # Compute physics-based UAV state (roll, pitch, yaw) [cite: 524]
+            state = self._compute_uav_state(t, pos_vec, vel_vec, acc_vec)
+            rpy = np.array([state['roll'], state['pitch'], state['yaw']])
+
+            # Convert ZYX Euler angles to Quaternion [cite: 546, 547]
+            r = R.from_euler('zyx', rpy[::-1], degrees=False)
+            quat = r.as_quat() # Returns [x, y, z, w]
+
+            # Store data for return
+            imu_acc[i] = state['accel']
+            angle_vec[i] = rpy
+            all_pos_vec[i] = pos_vec
+            quat_pos_vec[i] = quat
+
+            # Selective capture for Blender visualization [cite: 526, 548]
+            if i % IMAGE_CAPTURE_MULTIPLIER == 0:
+                ret_list.append(state)
+
+        # Compute angular velocity (gyro) from orientation changes 
+        gyro_vec = np.gradient(angle_vec, dt, axis=0)
+        
+        # Generate IMU format for training [cite: 509]
+        imu_data = generate_imu_data_np(imu_acc, gyro_vec, frequency)
+
+        # Ground Truth data (Position + Quaternion)
+        gt_data = np.zeros((datapoints, 7))
         gt_data[:, :3] = all_pos_vec
         gt_data[:, 3:] = quat_pos_vec
 
@@ -247,13 +312,14 @@ def visualize_trajectory_3d(states):
     ax.set_zlim(mid_z - max_range, mid_z + max_range)
 
     plt.savefig('Phase2/Output/test.png')
+    plt.show()
 
 # Example usage if run directly
 if __name__ == "__main__":
     generator = UAVTrajectoryGenerator()
     # Generate a 20-second trajectory at 24 Hz (Standard Blender film frame rate)
     # trajectory_8, _ = generator.generate_figure8(duration=20, frequency=24, speed=0.4)
-    trajectory_l, _ = generator.generate_line(duration=10, frequency=1000)
+    trajectory_l, _, _ = generator.generate_polynomial_line(duration=10, frequency=1000)
     # trajectory_c, _ = generator.generate_circle(duration=20, frequency=24)
     # trajectory_s, _ = generator.generate_square(duration=20, frequency=24)
     # trajectory_cc, _ = generator.generate_circle_changing_height(duration=20, frequency=24)
