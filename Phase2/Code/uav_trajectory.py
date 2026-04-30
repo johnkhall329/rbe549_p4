@@ -162,12 +162,48 @@ class UAVTrajectoryGenerator:
         dt = 1.0 / frequency
         times = np.arange(0, duration, dt)
         states = []
-        for t in times:
+
+        datapoints = len(times)
+        # Pre-allocate arrays for efficiency
+        imu_acc = np.zeros((datapoints, 3))
+        angle_vec = np.zeros((datapoints, 3))
+        all_pos_vec = np.zeros((datapoints//IMAGE_CAPTURE_MULTIPLIER, 3))
+        quat_pos_vec = np.zeros((datapoints//IMAGE_CAPTURE_MULTIPLIER, 4))
+
+
+        for i, t in enumerate(times):
             pos = np.array([radius * np.cos(speed * t), radius * np.sin(speed * t), z_height])
             vel = np.array([-radius * speed * np.sin(speed * t), radius * speed * np.cos(speed * t), 0])
             acc = np.array([-radius * speed**2 * np.cos(speed * t), -radius * speed**2 * np.sin(speed * t), 0])
-            states.append(self._compute_uav_state(t, pos, vel, acc))
-        return states
+            state = self._compute_uav_state(t, pos, vel, acc)
+
+            # Store data for return
+            imu_acc[i] = state['accel']
+            angle_vec[i] = np.array(state['rpy'])
+
+            # Selective capture for Blender visualization [cite: 526, 548]
+            if i % IMAGE_CAPTURE_MULTIPLIER == 0:   
+
+                all_pos_vec[i//IMAGE_CAPTURE_MULTIPLIER] = pos
+                quat_pos_vec[i//IMAGE_CAPTURE_MULTIPLIER] = state['quat']
+
+                states.append(state)
+
+        # Compute angular velocity (gyro) from orientation changes 
+        # wrap it so that imu gradient is reasonable
+        wrap_angle_vec = angle_vec
+        wrap_angle_vec[:, 2] = np.unwrap(wrap_angle_vec[:, 2])
+        gyro_vec = np.gradient(wrap_angle_vec, dt, axis=0)
+        
+        # Generate IMU format for training [cite: 509]
+        imu_data = generate_imu_data_np(imu_acc, gyro_vec, frequency)
+
+        # Ground Truth data (Position + Quaternion)
+        gt_data = np.zeros((datapoints//IMAGE_CAPTURE_MULTIPLIER, 7))
+        gt_data[:, :3] = all_pos_vec
+        gt_data[:, 3:] = quat_pos_vec
+
+        return states, imu_data, gt_data
     
     def generate_circle_changing_height(self, duration, frequency, radius=5.0, z_base=10.0, z_amplitude=2.0, speed=0.5, z_speed=1.0):
         """
@@ -359,58 +395,60 @@ if __name__ == "__main__":
     generator = UAVTrajectoryGenerator()
     # Generate a 20-second trajectory at 24 Hz (Standard Blender film frame rate)
     # trajectory_8, _ = generator.generate_figure8(duration=20, frequency=24, speed=0.4)
-    trajectory_l, imu_data, gt = generator.generate_polynomial_line(duration=5, frequency=100, start=(-5,5,5), end = (-5,-5,6))
-    # trajectory_c, _ = generator.generate_circle(duration=20, frequency=24)
+    # trajectory_l, imu_data, gt = generator.generate_polynomial_line(duration=5, frequency=100, start=(-5,5,5), end = (-5,-5,6))
+    # trajectory_c, imu_data, gt = generator.generate_circle(duration=5, frequency=100, speed=1.25)
+    trajectory, imu_data, gt_data = generator.generate_circle(duration=5, frequency=100, radius = 3, z_height=5, speed=1.25)
     # trajectory_s, _ = generator.generate_square(duration=20, frequency=24)
     # trajectory_cc, imu_data, gt = generator.generate_circle_changing_height(duration=20, frequency=240)
 
-    visualize_trajectory_3d(trajectory_l)
+    visualize_trajectory_3d(trajectory)
 
-    time = np.linspace(0, 5, len(gt))
+    time = np.linspace(0, 5, len(imu_data))
+    gt = gt_data
 
     fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
 
-    # # Subplot 1: Gyroscope Data (XYZ rates)
-    # axes[0].plot(time, imu_data[:, 3], label='Gyro X')
-    # axes[0].plot(time, imu_data[:, 4], label='Gyro Y')
-    # axes[0].plot(time, imu_data[:, 5], label='Gyro Z')
-    # axes[0].set_ylabel('Angular Velocity (rad/s)')
-    # axes[0].set_title('IMU Gyroscope Data')
-    # axes[0].legend(loc='upper right')
-    # axes[0].grid(True)
-
-    # # Subplot 2: Position over time
-    # axes[1].plot(time, imu_data[:, 0], label='X')
-    # axes[1].plot(time, imu_data[:, 1], label='Y')
-    # axes[1].plot(time, imu_data[:, 2], label='Z')
-    # axes[1].set_ylabel('Acc (m/s^2)')
-    # axes[1].set_xlabel('Time (s)')
-    # axes[1].set_title('Ground Truth Acceleromer')
-    # axes[1].legend(loc='upper right')
-    # axes[1].grid(True)
-
-    # plt.tight_layout()
-    # plt.show()
-
     # Subplot 1: Gyroscope Data (XYZ rates)
-    axes[0].plot(time, gt[:, 3], label='quat1')
-    axes[0].plot(time, gt[:, 4], label='quat2')
-    axes[0].plot(time, gt[:, 5], label='quat3')
-    axes[0].plot(time, gt[:, 6], label='quat4')
-    axes[0].set_ylabel('angle')
-    axes[0].set_title('gt ang')
+    axes[0].plot(time, imu_data[:, 3], label='Gyro X')
+    axes[0].plot(time, imu_data[:, 4], label='Gyro Y')
+    axes[0].plot(time, imu_data[:, 5], label='Gyro Z')
+    axes[0].set_ylabel('Angular Velocity (rad/s)')
+    axes[0].set_title('IMU Gyroscope Data')
     axes[0].legend(loc='upper right')
     axes[0].grid(True)
 
     # Subplot 2: Position over time
-    axes[1].plot(time, gt[:, 0], label='X')
-    axes[1].plot(time, gt[:, 1], label='Y')
-    axes[1].plot(time, gt[:, 2], label='Z')
+    axes[1].plot(time, imu_data[:, 0], label='X')
+    axes[1].plot(time, imu_data[:, 1], label='Y')
+    axes[1].plot(time, imu_data[:, 2], label='Z')
     axes[1].set_ylabel('Acc (m/s^2)')
     axes[1].set_xlabel('Time (s)')
-    axes[1].set_title('Ground Truth Position')
+    axes[1].set_title('Ground Truth Acceleromer')
     axes[1].legend(loc='upper right')
     axes[1].grid(True)
 
     plt.tight_layout()
     plt.show()
+
+    # Subplot 1: Gyroscope Data (XYZ rates)
+    # axes[0].plot(time, gt[:, 3], label='quat1')
+    # axes[0].plot(time, gt[:, 4], label='quat2')
+    # axes[0].plot(time, gt[:, 5], label='quat3')
+    # axes[0].plot(time, gt[:, 6], label='quat4')
+    # axes[0].set_ylabel('angle')
+    # axes[0].set_title('gt ang')
+    # axes[0].legend(loc='upper right')
+    # axes[0].grid(True)
+
+    # # Subplot 2: Position over time
+    # axes[1].plot(time, gt[:, 0], label='X')
+    # axes[1].plot(time, gt[:, 1], label='Y')
+    # axes[1].plot(time, gt[:, 2], label='Z')
+    # axes[1].set_ylabel('Acc (m/s^2)')
+    # axes[1].set_xlabel('Time (s)')
+    # axes[1].set_title('Ground Truth Position')
+    # axes[1].legend(loc='upper right')
+    # axes[1].grid(True)
+
+    # plt.tight_layout()
+    # plt.show()

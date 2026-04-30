@@ -51,7 +51,12 @@ def main():
         os.makedirs(args.output_dir + f'/{i}_traj', exist_ok=True)
         # 1. Generate Trajectory and IMU Data [cite: 10, 31]
         s, e = generate_start_end_points()
+<<<<<<< HEAD
         trajectory, imu_data, gt_data = generator.generate_polynomial_line(duration=5, frequency=1000, start=s, end = e) #, start=s, end=e)
+=======
+        # trajectory, imu_data, gt_data = generator.generate_polynomial_line(duration=5, frequency=100, start=(-5,5,5), end = (5, -5, 6)) #, start=s, end=e)
+        trajectory, imu_data, gt_data = generator.generate_circle(duration=5, frequency=100, radius = 3, z_height=5, speed=1.25)
+>>>>>>> circles good and imu data bug fixed
         # trajectory, imu_data, gt_data = generator.generate_circle_changing_height(duration=5, frequency=100, z_base=8)
 
         # 2. Save to Pickle and Numpy [cite: 4]
