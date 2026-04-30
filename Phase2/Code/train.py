@@ -8,6 +8,7 @@ import torchvision.transforms as transforms
 from torchcodec.decoders import VideoDecoder
 
 from Network import *
+from transform_utils import batch_se3_exp, batch_dpose
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SEQUENCE_LENGTH = 30
@@ -62,8 +63,11 @@ def train(args):
                 curr_imu_data = imu[:, j*10:(j+1)*10]
                 gt_data = gt[:, j:j+2] - traj_pos
                 curr_img_pairs = curr_img_pairs.to(device)
-                out = model(curr_img_pairs, curr_imu_data, traj_pos)
+                se3_vecs = model(curr_img_pairs, curr_imu_data, traj_pos)
                 # convert se3 to SE3 for loss and loop input ...
+                SE3_mats = batch_se3_exp(se3_vecs)
+                new_pose = batch_dpose(SE3_mats, traj_pos)
+
 
 
 

@@ -66,7 +66,7 @@ class DeepVIO(nn.Module):
         self.linear1 = nn.Linear(1024, 128)
         self.linear2 = nn.Linear(128, 6)
 
-        self.hidden_state = None
+        # self.hidden_state = None
 
         if model_type == 0:
             self.VO = DeepVO()
@@ -112,9 +112,9 @@ class DeepVIO(nn.Module):
             imu_out = self.IO(imu)
             cat_out = torch.cat((imu_out, xyzQ), 2)
         
-        r_out, (h_n, h_c) = self.rnn(cat_out, self.hidden_state)
+        r_out, (h_n, h_c) = self.rnn(cat_out)
         # self.hidden_state = (h_n.detach(), h_c.detach())
-        self.hidden_state = (h_n, h_c)
+        # self.hidden_state = (h_n, h_c)
         l_out1 = self.linear1(r_out[:,-1,:])
         l_out2 = self.linear2(l_out1)
 
