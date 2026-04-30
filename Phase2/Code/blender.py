@@ -4,6 +4,7 @@ import sys
 import os
 import subprocess # Add this at the top
 import shutil
+from mathutils import Quaternion, Matrix
 
 # Get arguments after "--" [cite: 40]
 argv = sys.argv
@@ -64,13 +65,24 @@ def render_trajectory(storage_efficient=True):
     os.makedirs(temp_frame_dir, exist_ok=True)
 
     bpy.context.scene.camera = cam
-    cam.rotation_mode = 'ZYX' 
+    # cam.rotation_mode = 'ZYX'
+    # z_offset = Quaternion((1.0, 0.0, 0.0, 1.0)).normalized()
+
+    # total_offset = z_offset
 
     for i, state in enumerate(trajectory):
         # Update camera state [cite: 29, 45]
-        cam.location = (state['x'], state['y'], state['z'])
-        cam.rotation_euler = (state['roll'], state['pitch'], state['yaw'])
+        xyz = state['xyz']
+        cam.location = (xyz[0], xyz[1], xyz[2])
+        cam.rotation_mode = 'QUATERNION'
+
+        q = state['quat']
+        raw_q = Quaternion((q[3], q[0], q[1], q[2]))
         
+        # Apply the offset: Rotate the world-frame orientation by the Z-alignment
+        cam.rotation_quaternion = raw_q
+        
+
         # Set output path for this specific frame
         frame_name = f"frame_{i:04d}.png"
         render_path = os.path.join(temp_frame_dir, frame_name)
@@ -102,4 +114,4 @@ if __name__ == "__main__":
     # Set the path to your texture image
     # texture_path = "/home/wyatt/Documents/CV/P4/rbe549_p4/Phase2/Data/Textures/coast_land_rocks_01/coast_land_rocks_01_primary.png"
     apply_texture_to_plane("Plane", texture_path)
-    render_trajectory()
+    render_trajectory(False)

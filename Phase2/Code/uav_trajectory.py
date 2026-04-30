@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
-from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Rotation as Rot
 
 IMAGE_CAPTURE_MULTIPLIER = 10
 
@@ -30,7 +30,6 @@ class UAVTrajectoryGenerator:
         y_body = y_body / np.linalg.norm(y_body)
         x_body = np.cross(y_body, z_body)
 
-        # Rotation Matrix to Euler Angles (ZYX order) 
         R = np.column_stack((x_body, y_body, z_body))
         pitch = np.arcsin(-np.clip(R[2, 0], -1.0, 1.0))
         roll = np.arctan2(R[2, 1], R[2, 2])
@@ -38,10 +37,15 @@ class UAVTrajectoryGenerator:
 
         accel_body = R.T @ thrust_vec
 
+        r = Rot.from_euler('zyx', [actual_yaw, pitch, roll], degrees=False)
+        quat = r.as_quat() # Returns [x, y, z, w]
+
         return {
             'time': round(t, 4),
-            'x': pos[0], 'y': pos[1], 'z': pos[2],
-            'roll': roll, 'pitch': pitch, 'yaw': actual_yaw, 'accel': accel_body
+            'xyz': [pos[0], pos[1], pos[2]],
+            'rpy': [roll, pitch, actual_yaw], 
+            'accel': accel_body,
+            'quat': quat
         }
 
     def generate_line(self, duration, frequency, start=(0,0,1), end=(10,10,10)):
@@ -61,10 +65,10 @@ class UAVTrajectoryGenerator:
             pos_vec = start + vel_vec * t
             acc_vec = np.zeros(3)
             state = self._compute_uav_state(t, pos_vec, vel_vec, acc_vec)
-            rpy = np.array([state['roll'], state['pitch'], state['yaw']])
+            rpy = np.array(state['rpy'])
 
             # Create a rotation object from Euler angles (ZYX order)
-            r = R.from_euler('zyx', rpy[::-1], degrees=False)
+            r = Rot.from_euler('zyx', rpy[::-1], degrees=False)
             quat = r.as_quat() # Returns [x, y, z, w]
 
             # Save Important Data
@@ -96,6 +100,7 @@ class UAVTrajectoryGenerator:
         datapoints = len(times)
         start, end = np.array(start), np.array(end)
         dist_vec = end - start
+        yaw = np.arctan2(dist_vec[1], dist_vec[0])
         
         # Pre-allocate arrays for efficiency
         imu_acc = np.zeros((datapoints, 3))
@@ -122,22 +127,18 @@ class UAVTrajectoryGenerator:
             acc_vec = dist_vec * dds
 
             # Compute physics-based UAV state (roll, pitch, yaw) [cite: 524]
-            yaw = np.arctan2(dist_vec[1], dist_vec[0])
             state = self._compute_uav_state(t, pos_vec, vel_vec, acc_vec, yaw=yaw)
-            rpy = np.array([state['roll'], state['pitch'], state['yaw']])
 
             # Store data for return
             imu_acc[i] = state['accel']
-            angle_vec[i] = rpy 
+            angle_vec[i] = np.array(state['rpy'])
 
             # Selective capture for Blender visualization [cite: 526, 548]
             if i % IMAGE_CAPTURE_MULTIPLIER == 0:
                 # Convert ZYX Euler angles to Quaternion [cite: 546, 547]
-                r = R.from_euler('zyx', rpy[::-1], degrees=False)
-                quat = r.as_quat() # Returns [x, y, z, w]
 
                 all_pos_vec[i//IMAGE_CAPTURE_MULTIPLIER] = pos_vec
-                quat_pos_vec[i//IMAGE_CAPTURE_MULTIPLIER] = quat
+                quat_pos_vec[i//IMAGE_CAPTURE_MULTIPLIER] = state['quat']
 
                 ret_list.append(state)
 
@@ -215,7 +216,7 @@ class UAVTrajectoryGenerator:
 
             rpy = np.array([state['roll'], state['pitch'], state['yaw']])
             # Convert ZYX Euler angles to Quaternion [cite: 546, 547]
-            r = R.from_euler('zyx', rpy[::-1], degrees=False)
+            r = Rot.from_euler('zyx', rpy[::-1], degrees=False)
             quat = r.as_quat() # Returns [x, y, z, w]
 
             # Store data for return
@@ -278,9 +279,9 @@ def visualize_trajectory_3d(states):
     ax = fig.add_subplot(111, projection='3d')
 
     # Extract positions
-    xs = [state['x'] for state in states]
-    ys = [state['y'] for state in states]
-    zs = [state['z'] for state in states]
+    xs = [state['xyz'][0] for state in states]
+    ys = [state['xyz'][1] for state in states]
+    zs = [state['xyz'][2] for state in states]
 
     # Plot the main trajectory line
     ax.plot(xs, ys, zs, label='UAV Trajectory', color='royalblue', linewidth=2)
@@ -294,13 +295,13 @@ def visualize_trajectory_3d(states):
 
     for i in range(0, len(states), sample_rate):
         state = states[i]
-        qx.append(state['x'])
-        qy.append(state['y'])
-        qz.append(state['z'])
+        qx.append(state['xyz'][0])
+        qy.append(state['xyz'][1])
+        qz.append(state['xyz'][2])
         
-        roll = state['roll']
-        pitch = state['pitch']
-        yaw = state['yaw']
+        roll = state['rpy'][0]
+        pitch = state['rpy'][1]
+        yaw = state['rpy'][2]
 
         # Reconstruct the rotation matrices based on Euler angles (ZYX order)
         R_x = np.array([[1, 0, 0],
@@ -355,7 +356,7 @@ if __name__ == "__main__":
     generator = UAVTrajectoryGenerator()
     # Generate a 20-second trajectory at 24 Hz (Standard Blender film frame rate)
     # trajectory_8, _ = generator.generate_figure8(duration=20, frequency=24, speed=0.4)
-    trajectory_l, imu_data, gt = generator.generate_polynomial_line(duration=5, frequency=100, start=(5, 5, 5), end=(-5, -5, 6))
+    trajectory_l, imu_data, gt = generator.generate_polynomial_line(duration=5, frequency=100, start=(-5,5,5), end = (-5,-5,6))
     # trajectory_c, _ = generator.generate_circle(duration=20, frequency=24)
     # trajectory_s, _ = generator.generate_square(duration=20, frequency=24)
     # trajectory_cc, imu_data, gt = generator.generate_circle_changing_height(duration=20, frequency=240)
