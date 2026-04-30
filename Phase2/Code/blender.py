@@ -5,6 +5,7 @@ import os
 import subprocess # Add this at the top
 import shutil
 from mathutils import Quaternion, Matrix
+from scipy.spatial.transform import Rotation as Rot
 
 # Get arguments after "--" [cite: 40]
 argv = sys.argv
@@ -70,13 +71,18 @@ def render_trajectory(storage_efficient=True):
 
     # total_offset = z_offset
 
+    y_Rot = Rot.from_matrix([[ 0.,  1.,  0.],
+                            [-1.,  0.,  0.],
+                            [ 0.,  0.,  1.]])
+
     for i, state in enumerate(trajectory):
         # Update camera state [cite: 29, 45]
         xyz = state['xyz']
         cam.location = (xyz[0], xyz[1], xyz[2])
         cam.rotation_mode = 'QUATERNION'
 
-        q = state['quat']
+        q_rot = Rot.from_quat(state['quat'])
+        q = (q_rot*y_Rot).as_quat()
         raw_q = Quaternion((q[3], q[0], q[1], q[2]))
         
         # Apply the offset: Rotate the world-frame orientation by the Z-alignment
@@ -113,5 +119,8 @@ if __name__ == "__main__":
     # --- Start of your existing script logic ---
     # Set the path to your texture image
     # texture_path = "/home/wyatt/Documents/CV/P4/rbe549_p4/Phase2/Data/Textures/coast_land_rocks_01/coast_land_rocks_01_primary.png"
+    import time
+    time.sleep(3)
+    print("ready")
     apply_texture_to_plane("Plane", texture_path)
     render_trajectory(False)

@@ -35,10 +35,13 @@ class UAVTrajectoryGenerator:
         roll = np.arctan2(R[2, 1], R[2, 2])
         actual_yaw = np.arctan2(R[1, 0], R[0, 0])
 
+        big_r = Rot.from_matrix(R)
+        roll, pitch, actual_yaw = big_r.as_euler('xyz')
+
         accel_body = R.T @ thrust_vec
 
-        r = Rot.from_euler('zyx', [actual_yaw, pitch, roll], degrees=False)
-        quat = r.as_quat() # Returns [x, y, z, w]
+        # r = Rot.from_euler('zyx', [actual_yaw, pitch, roll], degrees=False)
+        quat = big_r.as_quat() # Returns [x, y, z, w]
 
         return {
             'time': round(t, 4),
