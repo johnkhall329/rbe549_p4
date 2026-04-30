@@ -36,6 +36,7 @@ def apply_texture_to_plane(plane_name, image_path):
     try:
         img = bpy.data.images.load(image_path)
         node_tex.image = img
+        node_bsdf.inputs["Roughness"].default_value = 1.0
     except Exception as e:
         print(f"Failed to load image: {e}")
         return
@@ -119,8 +120,5 @@ if __name__ == "__main__":
     # --- Start of your existing script logic ---
     # Set the path to your texture image
     # texture_path = "/home/wyatt/Documents/CV/P4/rbe549_p4/Phase2/Data/Textures/coast_land_rocks_01/coast_land_rocks_01_primary.png"
-    import time
-    time.sleep(3)
-    print("ready")
     apply_texture_to_plane("Plane", texture_path)
-    render_trajectory(False)
+    render_trajectory()

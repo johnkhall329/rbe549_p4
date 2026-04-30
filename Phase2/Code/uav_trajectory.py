@@ -97,13 +97,13 @@ class UAVTrajectoryGenerator:
     
     import numpy as np
 
-    def generate_polynomial_line(self, duration, frequency, start=(0,0,1), end=(10,10,10)):
+    def generate_polynomial_line(self, duration, frequency, start=(0,0,1), end=(10,10,10), random_yaw=True):
         dt = 1.0 / frequency
         times = np.arange(0, duration, dt)
         datapoints = len(times)
         start, end = np.array(start), np.array(end)
         dist_vec = end - start
-        yaw = np.arctan2(dist_vec[1], dist_vec[0])
+        yaw = np.random.random()*2*np.pi if random_yaw else np.arctan2(dist_vec[1], dist_vec[0])
         
         # Pre-allocate arrays for efficiency
         imu_acc = np.zeros((datapoints, 3))
