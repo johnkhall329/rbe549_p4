@@ -41,7 +41,7 @@ class UAVTrajectoryGenerator:
         accel_body = R.T @ thrust_vec
 
         # r = Rot.from_euler('zyx', [actual_yaw, pitch, roll], degrees=False)
-        quat = big_r.as_quat() # Returns [x, y, z, w]
+        quat = big_r.as_quat(scalar_first=True) # Returns [w, x, y, z]
 
         return {
             'time': round(t, 4),

@@ -83,8 +83,8 @@ def render_trajectory(storage_efficient=True):
         cam.rotation_mode = 'QUATERNION'
 
         q_rot = Rot.from_quat(state['quat'])
-        q = (q_rot*y_Rot).as_quat()
-        raw_q = Quaternion((q[3], q[0], q[1], q[2]))
+        q = (q_rot*y_Rot).as_quat(scalar_first=True)
+        raw_q = Quaternion((q[0], q[1], q[2], q[3]))
         
         # Apply the offset: Rotate the world-frame orientation by the Z-alignment
         cam.rotation_quaternion = raw_q
