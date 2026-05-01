@@ -9,10 +9,22 @@ import torchvision.transforms as transforms
 import numpy as np
 
 from Network import *
-from transform_utils import process_output, get_twist
+from transform_utils import process_output, get_twist, relative_start
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SEQUENCE_LENGTH = 30
+
+def loss(output_twist, output_pose, gt_twist, gt_pose, rot_weight=1.0, quat_weight=2.5, ):
+    v_loss = F.l1_loss(output_twist[:,:3], gt_twist[:,:3])
+    omega_loss = F.l1_loss(output_twist[:,3:], gt_twist[:,3:])
+    twist_loss = v_loss + rot_weight*omega_loss
+
+    pos_loss = F.mse_loss(output_pose[:,0,:3], gt_pose[:,0,:3])
+    quat_loss = torch.mean(quat_weight*(1 - torch.linalg.vecdot(output_pose[:,0, 3:], gt_pose[:,0,3:])))
+    global_loss = pos_loss+quat_loss
+
+    return twist_loss, pos_loss+quat_loss
+
 
 def train(args):
     epochs = args.epochs
@@ -68,25 +80,20 @@ def train(args):
             print(f"Batch {i} - Images: {data_transforms(decoders[0][0]).shape}, IMU: {imu.shape}, GT: {gt.shape}")
 
             start_pos = gt[:,[0]]
-            traj_pos = start_pos
+            traj_pos = relative_start(start_pos,start_pos)
             for j in range(decoders[0].metadata.num_frames - 1):
                 curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                 curr_imu_data = imu[:, j*10:(j+1)*10]
-                gt_data = gt[:, j:j+2] - start_pos
+                gt_data = relative_start(gt[:, j:j+2], start_pos)
                 curr_img_pairs = curr_img_pairs.to(device)
-                se3_vecs = model(curr_img_pairs, curr_imu_data, traj_pos)
+                out_twist = model(curr_img_pairs, curr_imu_data, traj_pos)
                 # convert se3 to SE3 for loss and loop input ...
-                new_pose = process_output(se3_vecs, traj_pos)
+                new_pose = process_output(out_twist, traj_pos)
                 gt_twist = get_twist(gt_data)
-
+                twist_loss, pose_loss = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :])
 
                 
-                
-
-
-
-
-
+    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
