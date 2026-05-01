@@ -5,7 +5,8 @@ import argparse
 from dataloader import DeepVIODataset
 from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms as transforms
-from torchcodec.decoders import VideoDecoder
+# from torchcodec.decoders import VideoDecoder
+import numpy as np
 
 from Network import *
 from transform_utils import process_output, get_twist
@@ -40,9 +41,19 @@ def train(args):
     abs_traj = None
 
     optimizer = torch.optim.AdamW(model.parameters(), args.l_rate)
+    global_weight_init = 0.01
+    global_weight_final = 0.9
+    init_x = -np.log(global_weight_init)
+    final_x = -np.log(global_weight_final)
+
+    scale_x = (final_x - init_x)/(epochs - 1)
 
     for epoch_i in tqdm(range(epochs)):
         model.train()
+
+        # find the global and f2f weights for this epoch
+        global_weight = np.exp(-(init_x + (scale_x*epoch_i)))
+        print(global_weight)
 
         for i, (video_paths, imu, gt) in enumerate(dataloader):
             
@@ -67,6 +78,8 @@ def train(args):
                 # convert se3 to SE3 for loss and loop input ...
                 new_pose = process_output(se3_vecs, traj_pos)
                 gt_twist = get_twist(gt_data)
+
+
                 
                 
 
@@ -80,7 +93,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_type', type=int, default=2, 
         help='0: VO, 1: IO, 2: VIO.')
     parser.add_argument('--traj_set', type=int, default=3)
-    parser.add_argument('--epochs', type=int, default=4)
+    parser.add_argument('--epochs', type=int, default=40)
     parser.add_argument('--l_rate', type=float, default=1e-4)
     args = parser.parse_args()
 
