@@ -7,12 +7,12 @@ from imu_gen import generate_imu_data
 import numpy as np
 import random
 
-def generate_start_end_points(min_dist=1.0):
+def generate_start_end_points_yaw(min_dist=1.5):
     # Define your workspace bounds
     # x: 0-10, y: 0-10, z: 1-10
-    low = np.array([-5, -5, 3])
-    high = np.array([5, 5, 8])
-    
+    low = np.array([-6, -6, 3])
+    high = np.array([6, 6, 8])
+    yaw = np.random.uniform(0, 2*np.pi)
     while True:
         # Generate random start and end points within bounds
         start_point = np.random.uniform(low, high)
@@ -23,7 +23,7 @@ def generate_start_end_points(min_dist=1.0):
         
         # Only return if the length constraint is satisfied
         if dist >= min_dist:
-            return start_point, end_point
+            return start_point, end_point, yaw
 
 
 def main():
@@ -32,7 +32,11 @@ def main():
     parser.add_argument("--base_blender_scene", default="Phase2/Blender/test_scene.blend")
     parser.add_argument("--output_dir", default="Phase2/Data/Trajectories")
     parser.add_argument("--headless", action="store_true", default=True)
+<<<<<<< HEAD
     parser.add_argument("--num_samples", default=3)
+=======
+    parser.add_argument("--num_samples", default=40)
+>>>>>>> readied for generation
     parser.add_argument("--texture_dir", default="Phase2/Data/Redlands - Packing House District/Images")
     args = parser.parse_args()
 
@@ -50,6 +54,7 @@ def main():
         
         os.makedirs(args.output_dir + f'/{i}_traj', exist_ok=True)
         # 1. Generate Trajectory and IMU Data [cite: 10, 31]
+<<<<<<< HEAD
         s, e = generate_start_end_points()
 <<<<<<< HEAD
         trajectory, imu_data, gt_data = generator.generate_polynomial_line(duration=5, frequency=1000, start=s, end = e) #, start=s, end=e)
@@ -60,12 +65,20 @@ def main():
 >>>>>>> circles good and imu data bug fixed
         # trajectory, imu_data, gt_data = generator.generate_circle_changing_height(duration=5, frequency=100, z_base=8)
 =======
+=======
+        s, e, yaw = generate_start_end_points_yaw()
+        trajectory, imu_data, gt_data = generator.generate_polynomial_line(duration=7, frequency=1000, start=s, end=e, yaw=yaw) # start=(-5,5,5), end = (5, -5, 6))
+>>>>>>> readied for generation
         # trajectory, imu_data, gt_data = generator.generate_circle(duration=5, frequency=100, radius = 3, z_height=5, speed=1.25)
         # trajectory, imu_data, gt_data = generator.generate_square(duration=10, frequency=100, side_length=5, z_height=6, yaw_val=np.pi)
         # trajectory, imu_data, gt_data = generator.generate_circle_changing_height(duration=10, frequency=100, radius=3, z_base=6, z_amplitude=1, speed=0.5, z_speed=1)
         # trajectory, imu_data, gt_data = generator.generate_figure8(duration=10, frequency=100, radius_x =2.5, radius_y=2.5, z_height=5, speed=0.7)
+<<<<<<< HEAD
         trajectory, imu_data, gt_data = generator.generate_square(duration=20, frequency=100, side_length=5, z_height=6, constant_yaw=np.pi)
 >>>>>>> five trajs are orking i think
+=======
+        # trajectory, imu_data, gt_data = generator.generate_square(duration=20, frequency=100, side_length=5, z_height=6, constant_yaw=np.pi)
+>>>>>>> readied for generation
 
         # 2. Save to Pickle and Numpy [cite: 4]
         with open(args.output_dir + f'/{i}_traj/imu_data.npy', 'wb') as f:
