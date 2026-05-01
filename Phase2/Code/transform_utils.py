@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from typing import Tuple
 
 def process_output(twist, prev_pose):
-    delta_pose = se3_exp_map(twist)
+    delta_pose = se3_exp_map(twist).transpose(-1,-2) #pytorch 3d does it weird
     quats = prev_pose[:,0,3:]
     rots = quaternion_to_matrix(quats)
     prev_Ts = torch.eye(4).repeat(twist.shape[0], 1, 1).to(twist.device)
@@ -21,23 +21,27 @@ def get_twist(gt_data):
     T_prev_inv = torch.eye(4).repeat(gt_data.shape[0], 1, 1).to(gt_data.device)
     T_curr = torch.eye(4).repeat(gt_data.shape[0], 1, 1).to(gt_data.device)
 
-    R_prev = quaternion_to_matrix(prev_pose[:,0,3:])
-    R_curr = quaternion_to_matrix(curr_pose[:,0,3:])
-
-    t_prev = prev_pose[:,[0],:3].permute(0,2,1)
-    t_curr = curr_pose[:,[0],:3].permute(0,2,1)
+    R_prev = quaternion_to_matrix(prev_pose[:,3:])
+    R_curr = quaternion_to_matrix(curr_pose[:,3:])
 
     R_inv = R_prev.transpose(-1,-2)
     T_prev_inv[:,:3,:3] = R_inv
-    T_prev_inv[:,:3,3] = -torch.bmm(R_inv, t_prev)
+    T_prev_inv[:,:3,3] = (-torch.bmm(R_inv, prev_pose[:,:3].unsqueeze(2))).squeeze()
 
     T_curr[:,:3,:3] = R_curr
-    T_curr[:,:3,3] = t_curr
+    T_curr[:,:3,3] = curr_pose[:,:3]
 
     T_rel = torch.bmm(T_prev_inv, T_curr)    
-    gt_twist = se3_log_map(T_rel)
+    gt_twist = se3_log_map(T_rel.transpose(-1,-2))
     
     return gt_twist
+
+def relative_start(gt_pose, start_pose):
+    reset_pose = torch.zeros_like(gt_pose)
+    reset_pose[:,:,:3] = gt_pose[:,:,:3] - start_pose[:,:,:3]
+
+    reset_pose[:,:,3:] = quaternion_multiply(quaternion_invert(start_pose[:,:,3:]), gt_pose[:,:,3:])
+    return reset_pose
 
     
 def se3_exp_map(log_transform: torch.Tensor, eps: float = 1e-4) -> torch.Tensor:
@@ -635,3 +639,19 @@ def quaternion_multiply(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     """
     ab = quaternion_raw_multiply(a, b)
     return standardize_quaternion(ab)
+
+def quaternion_invert(quaternion: torch.Tensor) -> torch.Tensor:
+    """
+    Given a quaternion representing rotation, get the quaternion representing
+    its inverse.
+
+    Args:
+        quaternion: Quaternions as tensor of shape (..., 4), with real part
+            first, which must be versors (unit quaternions).
+
+    Returns:
+        The inverse, a tensor of quaternions of shape (..., 4).
+    """
+
+    scaling = torch.tensor([1, -1, -1, -1], device=quaternion.device)
+    return quaternion * scaling
