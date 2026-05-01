@@ -55,9 +55,17 @@ def main():
         trajectory, imu_data, gt_data = generator.generate_polynomial_line(duration=5, frequency=1000, start=s, end = e) #, start=s, end=e)
 =======
         # trajectory, imu_data, gt_data = generator.generate_polynomial_line(duration=5, frequency=100, start=(-5,5,5), end = (5, -5, 6)) #, start=s, end=e)
+<<<<<<< HEAD
         trajectory, imu_data, gt_data = generator.generate_circle(duration=5, frequency=100, radius = 3, z_height=5, speed=1.25)
 >>>>>>> circles good and imu data bug fixed
         # trajectory, imu_data, gt_data = generator.generate_circle_changing_height(duration=5, frequency=100, z_base=8)
+=======
+        # trajectory, imu_data, gt_data = generator.generate_circle(duration=5, frequency=100, radius = 3, z_height=5, speed=1.25)
+        # trajectory, imu_data, gt_data = generator.generate_square(duration=10, frequency=100, side_length=5, z_height=6, yaw_val=np.pi)
+        # trajectory, imu_data, gt_data = generator.generate_circle_changing_height(duration=10, frequency=100, radius=3, z_base=6, z_amplitude=1, speed=0.5, z_speed=1)
+        # trajectory, imu_data, gt_data = generator.generate_figure8(duration=10, frequency=100, radius_x =2.5, radius_y=2.5, z_height=5, speed=0.7)
+        trajectory, imu_data, gt_data = generator.generate_square(duration=20, frequency=100, side_length=5, z_height=6, constant_yaw=np.pi)
+>>>>>>> five trajs are orking i think
 
         # 2. Save to Pickle and Numpy [cite: 4]
         with open(args.output_dir + f'/{i}_traj/imu_data.npy', 'wb') as f:
