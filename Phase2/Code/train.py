@@ -5,7 +5,7 @@ import argparse
 from dataloader import DeepVIODataset
 from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms as transforms
-# from torchcodec.decoders import VideoDecoder
+from torchcodec.decoders import VideoDecoder
 import numpy as np
 
 from Network import *
@@ -14,7 +14,7 @@ from transform_utils import process_output, get_twist, relative_start
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SEQUENCE_LENGTH = 30
 
-def loss(output_twist, output_pose, gt_twist, gt_pose, rot_weight=1.0, quat_weight=2.5, ):
+def loss(output_twist, output_pose, gt_twist, gt_pose, global_weight, rot_weight=1.0, quat_weight=2.5 ):
     v_loss = F.l1_loss(output_twist[:,:3], gt_twist[:,:3])
     omega_loss = F.l1_loss(output_twist[:,3:], gt_twist[:,3:])
     twist_loss = v_loss + rot_weight*omega_loss
@@ -23,7 +23,9 @@ def loss(output_twist, output_pose, gt_twist, gt_pose, rot_weight=1.0, quat_weig
     quat_loss = torch.mean(quat_weight*(1 - torch.linalg.vecdot(output_pose[:,0, 3:], gt_pose[:,0,3:])))
     global_loss = pos_loss+quat_loss
 
-    return twist_loss, pos_loss+quat_loss
+    total_loss = (1-global_weight)*twist_loss + global_weight*global_loss
+
+    return total_loss
 
 
 def train(args):
@@ -86,11 +88,19 @@ def train(args):
                 curr_imu_data = imu[:, j*10:(j+1)*10]
                 gt_data = relative_start(gt[:, j:j+2], start_pos)
                 curr_img_pairs = curr_img_pairs.to(device)
+
+                optimizer.zero_grad()
+
                 out_twist = model(curr_img_pairs, curr_imu_data, traj_pos)
                 # convert se3 to SE3 for loss and loop input ...
                 new_pose = process_output(out_twist, traj_pos)
                 gt_twist = get_twist(gt_data)
-                twist_loss, pose_loss = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :])
+                total_loss = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :], global_weight)
+
+                total_loss.backwards()
+                optimizer.step()
+                
+
 
                 
     
