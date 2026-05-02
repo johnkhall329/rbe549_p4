@@ -5,8 +5,12 @@ import argparse
 from dataloader import DeepVIODataset
 from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms as transforms
-from torchcodec.decoders import VideoDecoder
 import numpy as np
+
+try:
+    from torchcodec.decoders import VideoDecoder
+except:
+    from torchcodec.decoders import SimpleVideoDecoder as VideoDecoder
 
 from Network import *
 from transform_utils import process_output, get_twist, relative_start
