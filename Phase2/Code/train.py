@@ -122,14 +122,14 @@ def train(args):
                 window_twist_loss += twist_loss
                 window_global_loss += global_loss
 
-                if (j+1 % 10) == 0:
+                if (j+1) % 10 == 0:
                     window_global_loss.backward()
                     optimizer.step()
                     optimizer.zero_grad()
 
-                    total_loss += window_total_loss
-                    total_twist_loss += window_twist_loss
-                    total_global_loss += window_global_loss
+                    total_loss += window_total_loss.detach()
+                    total_twist_loss += window_twist_loss.detach()
+                    total_global_loss += window_global_loss.detach()
 
                     window_total_loss = 0
                     window_twist_loss = 0
@@ -182,7 +182,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_type', type=int, default=2, 
         help='0: VO, 1: IO, 2: VIO.')
     parser.add_argument('--traj_set', type=int, default=3)
-    parser.add_argument('--epochs', type=int, default=10)
+    parser.add_argument('--epochs', type=int, default=30)
     parser.add_argument('--l_rate', type=float, default=1e-4)
     parser.add_argument('--log_path',default="./Phase2/Logs/",help="logs path")
     parser.add_argument('--run_name', default="test",help="folder to store images")
