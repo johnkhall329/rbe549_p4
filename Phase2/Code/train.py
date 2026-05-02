@@ -120,6 +120,8 @@ def train(args):
                 traj_loss.backward()
                 optimizer.step()
 
+                traj_pos = new_pose.detach()
+
             writer.add_scalar("Total_loss", total_loss/decoders[0].metadata.num_frames, traj_set_i+(epoch_i*len(dataloader)))
             writer.add_scalar("Twist_loss", twist_loss/decoders[0].metadata.num_frames, traj_set_i+(epoch_i*len(dataloader)))
             writer.add_scalar("Pose_loss", global_loss/decoders[0].metadata.num_frames, traj_set_i+(epoch_i*len(dataloader)))
