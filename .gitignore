@@ -216,3 +216,4 @@ Phase2/Data/*
 
 Phase2/Logs/*
 Phase2/Checkpoints/*
+pytorch_venv/*
