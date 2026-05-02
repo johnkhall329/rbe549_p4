@@ -80,6 +80,8 @@ def train(args):
         global_weight = np.exp(-(init_x + (scale_x*epoch_i)))
         # print(global_weight)
 
+        print(f"Epoch: {epoch_i}")
+
         for traj_set_i, (video_paths, imu, gt) in enumerate(dataloader):
             
             # images shape: [Batch, Seq_Len, C, H, W]
@@ -144,15 +146,30 @@ def train(args):
                 SaveName, 
             )
             print("\n" + SaveName + " Model Saved...")
+
+    SaveName = (
+        args.checkpoint_path
+        + args.run_name
+        + "Final.ckpt"
+    )
+
+    torch.save(
+        {
+            "epoch": epoch_i,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(), 
+        }, 
+        SaveName, 
+    )
+    print("\n" + SaveName + " Model Saved...")
                 
-    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', type=int, default=2, 
         help='0: VO, 1: IO, 2: VIO.')
     parser.add_argument('--traj_set', type=int, default=3)
-    parser.add_argument('--epochs', type=int, default=40)
+    parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--l_rate', type=float, default=1e-4)
     parser.add_argument('--log_path',default="./Phase2/Logs/",help="logs path")
     parser.add_argument('--run_name', default="test",help="folder to store images")
