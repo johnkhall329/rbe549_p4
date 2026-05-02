@@ -101,13 +101,16 @@ def train(args):
             total_twist_loss = 0
             total_global_loss = 0
 
+            window_total_loss = 0
+            window_twist_loss = 0
+            window_global_loss = 0
+
             for j in tqdm(range(decoders[0].metadata.num_frames - 1), desc="Sequence"):
                 curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                 curr_imu_data = imu[:, j*10:(j+1)*10]
                 gt_data = relative_start(gt[:, j:j+2], start_pos)
                 curr_img_pairs = curr_img_pairs.to(device)
 
-                optimizer.zero_grad()
 
                 out_twist = model(curr_img_pairs, curr_imu_data, traj_pos)
                 # convert se3 to SE3 for loss and loop input ...
@@ -115,12 +118,22 @@ def train(args):
                 gt_twist = get_twist(gt_data)
                 traj_loss, twist_loss, global_loss  = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :], global_weight)
 
-                total_loss += traj_loss
-                total_twist_loss += twist_loss
-                total_global_loss += global_loss
+                window_total_loss += traj_loss
+                window_twist_loss += twist_loss
+                window_global_loss += global_loss
 
-                traj_loss.backward()
-                optimizer.step()
+                if (j+1 % 10) == 0:
+                    window_global_loss.backward()
+                    optimizer.step()
+                    optimizer.zero_grad()
+
+                    total_loss += window_total_loss
+                    total_twist_loss += window_twist_loss
+                    total_global_loss += window_global_loss
+
+                    window_total_loss = 0
+                    window_twist_loss = 0
+                    window_global_loss = 0
 
                 traj_pos = new_pose.detach()
 
