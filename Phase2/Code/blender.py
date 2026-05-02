@@ -82,7 +82,7 @@ def render_trajectory(storage_efficient=True):
         cam.location = (xyz[0], xyz[1], xyz[2])
         cam.rotation_mode = 'QUATERNION'
 
-        q_rot = Rot.from_quat(state['quat'])
+        q_rot = Rot.from_quat(state['quat'], scalar_first=True)
         q = (q_rot*y_Rot).as_quat(scalar_first=True)
         raw_q = Quaternion((q[0], q[1], q[2], q[3]))
         

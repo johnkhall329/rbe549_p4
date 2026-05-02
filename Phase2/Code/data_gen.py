@@ -7,11 +7,11 @@ from imu_gen import generate_imu_data
 import numpy as np
 import random
 
-def generate_start_end_points(min_dist=1.5):
+def generate_start_end_points(min_dist=1.25, max_dist = 5):
     # Define your workspace bounds
     # x: 0-10, y: 0-10, z: 1-10
-    low = np.array([-5, -5, 3])
-    high = np.array([5, 5, 8])
+    low = np.array([-4, -4, 3])
+    high = np.array([4, 4, 8])
     yaw = np.random.uniform(0, 2*np.pi)
     
     while True:
@@ -23,7 +23,7 @@ def generate_start_end_points(min_dist=1.5):
         dist = np.linalg.norm(end_point - start_point)
         
         # Only return if the length constraint is satisfied
-        if dist >= min_dist:
+        if dist >= min_dist and dist <= max_dist:
             return start_point, end_point, yaw
 
 
@@ -52,7 +52,7 @@ def main():
         os.makedirs(args.output_dir + f'/{i}_traj', exist_ok=True)
         # 1. Generate Trajectory and IMU Data [cite: 10, 31]
         s, e, yaw = generate_start_end_points()
-        trajectory, imu_data, gt_data = generator.generate_polynomial_line(duration=5, frequency=1000, start=s, end = e, yaw=yaw) #, start=s, end=e)
+        trajectory, imu_data, gt_data = generator.generate_polynomial_line(duration=4, frequency=1000, start=s, end = e, yaw=yaw) #, start=s, end=e)
         # trajectory, imu_data, gt_data = generator.generate_circle_changing_height(duration=5, frequency=100, z_base=8)
         # trajectory, imu_data, gt_data = generator.generate_square(duration=10, frequency=100, side_length=5, z_height=6, yaw_val=np.pi)
         # trajectory, imu_data, gt_data = generator.generate_circle_changing_height(duration=10, frequency=100, radius=3, z_base=6, z_amplitude=1, speed=0.5, z_speed=1)
