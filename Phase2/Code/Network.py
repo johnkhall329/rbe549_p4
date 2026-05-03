@@ -93,27 +93,28 @@ class DeepVIO(nn.Module):
                 batch_first=True)
         
 
-    def forward(self, image, imu, xyzQ, hidden_state):
+    def forward(self, cat_out, xyzQ, hidden_state):
         # image (Batch, 2, 3, H, W)
         # imu (Batch, 10, 6)
         # xyzQ (1,1,7)
 
-        if self.VO is not None and self.IO is not None:
-            c_out = self.VO(image)
-            imu_out = self.IO(imu)
-            cat_out = torch.cat((c_out, imu_out), 2)#1 1 49158
-            cat_out = torch.cat((cat_out, xyzQ), 2)#1 1 49165
-        elif self.VO is not None and self.IO is None:
-            c_out = self.VO(image)
-            cat_out = torch.cat((c_out, xyzQ), 2)
-        else:
-            imu_out = self.IO(imu)
-            cat_out = torch.cat((imu_out, xyzQ), 2)
-        
+        # if self.VO is not None and self.IO is not None:
+        #     c_out = self.VO(image)
+        #     imu_out = self.IO(imu)
+        #     cat_out = torch.cat((c_out, imu_out), 2)#1 1 49158
+        #     cat_out = torch.cat((cat_out, xyzQ), 2)#1 1 49165
+        # elif self.VO is not None and self.IO is None:
+        #     c_out = self.VO(image)
+        #     cat_out = torch.cat((c_out, xyzQ), 2)
+        # else:
+        #     imu_out = self.IO(imu)
+        #     cat_out = torch.cat((imu_out, xyzQ), 2)
+
+        cat_out = torch.cat((cat_out, xyzQ.repeat(cat_out.shape[0], cat_out.shape[1], 1)), 2)
         r_out, (h_n, h_c) = self.rnn(cat_out, hidden_state)
         # self.hidden_state = (h_n, h_c)
         l_out1 = self.linear1(r_out[:,-1,:])
-        l_out2 = self.linear2(l_out1)
+        l_out2 = self.linear2(F.relu(l_out1))
 
         return l_out2, (h_n, h_c)
 

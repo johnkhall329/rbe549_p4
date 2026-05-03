@@ -93,39 +93,51 @@ def test(args):
         total_twist_loss = 0
         total_global_loss = 0
         
-        output_poses = np.zeros((decoders[0].metadata.num_frames,8))
-        gt_poses = np.zeros((decoders[0].metadata.num_frames,8))
+        output_poses = np.zeros((decoders[0].metadata.num_frames//args.window_size,8))
+        gt_poses = np.zeros((decoders[0].metadata.num_frames//args.window_size,8))
 
         output_poses[0,1:] = traj_pos[0,0,[0,1,2,4,5,6,3]].detach().cpu().numpy() # switch real component to end
         gt_poses[0,1:] = traj_pos[0,0,[0,1,2,4,5,6,3]].detach().cpu().numpy()
 
-        times = np.linspace(0, decoders[0].metadata.num_frames/100, decoders[0].metadata.num_frames, endpoint=False)
+        times = np.linspace(0, decoders[0].metadata.num_frames/100, decoders[0].metadata.num_frames//args.window_size, endpoint=False)
         output_poses[:,0] = times
         gt_poses[:,0] = times
 
         hidden_state = None
-        for j in tqdm(range(decoders[0].metadata.num_frames - 1), desc="Sequence"):
-            curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
-            curr_imu_data = imu[:, j*10:(j+1)*10]
-            gt_data = relative_start(gt[:, j:j+2], start_pos)
-            curr_img_pairs = curr_img_pairs.to(device)
+        window_buffer = torch.zeros((1, 10, 1030)).to(device)
+        prev_gt = traj_pos
+        with torch.no_grad():
+            for j in tqdm(range(decoders[0].metadata.num_frames - 1), desc="Sequence"):
+                curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
+                curr_imu_data = imu[:, j*10:(j+1)*10]
+                gt_data = relative_start(gt[:, j:j+2], start_pos)
+                curr_img_pairs = curr_img_pairs.to(device)
+                
+                img_out = model.VO(curr_img_pairs)
+                imu_out = model.IO(curr_imu_data)
+                cat_out = torch.cat((img_out, imu_out), 2)
 
-            with torch.no_grad():
-                out_twist = model(curr_img_pairs, curr_imu_data, traj_pos, hidden_state)
-            # convert se3 to SE3 for loss and loop input ...
-            new_pose = process_output(out_twist, traj_pos)
-            gt_twist = get_twist(gt_data)
-            traj_loss, twist_loss, global_loss  = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :], 0.5)
+                if (j+1) % args.window_size != 0:
+                        window_buffer[:,j % args.window_size] = cat_out
+                        continue
+                
+                window_buffer[:,j % args.window_size] = cat_out
+                out_twist, hidden_state = model(window_buffer, traj_pos, hidden_state)
+                # convert se3 to SE3 for loss and loop input ...
+                new_pose = process_output(out_twist, traj_pos)
+                gt_twist = get_twist(torch.cat((prev_gt, gt_data[:, [1], :]), 1))
+                prev_gt = gt_data[:, [1], :]
+                traj_loss, twist_loss, global_loss  = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :], 0.5)
 
-            total_loss += traj_loss
-            total_twist_loss += twist_loss
-            total_global_loss += global_loss
+                total_loss += traj_loss
+                total_twist_loss += twist_loss
+                total_global_loss += global_loss
 
-            traj_pos = new_pose.detach()
+                traj_pos = new_pose.detach()
 
-            np_pose = traj_pos.cpu().numpy()
-            output_poses[j+1,1:] = np_pose[0,0,[0,1,2,4,5,6,3]] # switch real component to end
-            gt_poses[j+1,1:] = gt_data[0,1,[0,1,2,4,5,6,3]].detach().cpu().numpy()
+                np_pose = traj_pos.cpu().numpy()
+                output_poses[(j+1)//args.window_size,1:] = np_pose[0,0,[0,1,2,4,5,6,3]] # switch real component to end
+                gt_poses[(j+1)//args.window_size,1:] = gt_data[0,1,[0,1,2,4,5,6,3]].detach().cpu().numpy()
 
         print(f"Total Loss: {total_loss/decoders[0].metadata.num_frames}")
         print(f"Twist Loss: {total_twist_loss/decoders[0].metadata.num_frames}")
@@ -184,8 +196,9 @@ if __name__ == '__main__':
     parser.add_argument('--log_path',default="./Phase2/Logs/",help="logs path")
     parser.add_argument('--output_path',default="./Phase2/Output/",help="logs path")
     parser.add_argument('--run_name', default="test",help="folder to store images")
+    parser.add_argument('--window_size', type=int, default=10)
     parser.add_argument('--checkpoint_path',default="./Phase2/Checkpoints/",help="checkpoints path")
-    parser.add_argument('--model_name',default="single_pt220.ckpt",help="checkpoint model name")
+    parser.add_argument('--model_name',default="batched20.ckpt",help="checkpoint model name")
     args = parser.parse_args()
 
     test(args)

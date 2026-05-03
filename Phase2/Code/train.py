@@ -102,41 +102,42 @@ def train(args):
             total_twist_loss = 0
             total_global_loss = 0
 
-            window_total_loss = 0
-            window_twist_loss = 0
-            window_global_loss = 0
-
             hidden_state = None
+            window_buffer = torch.zeros((args.traj_set, 10, 1030)).to(device)
+            prev_gt = start_pos
             for j in tqdm(range(decoders[0].metadata.num_frames - 1), desc="Sequence"):
                 curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                 curr_imu_data = imu[:, j*10:(j+1)*10]
                 gt_data = relative_start(gt[:, j:j+2], start_pos)
                 curr_img_pairs = curr_img_pairs.to(device)
 
-                out_twist, hidden_state = model(curr_img_pairs, curr_imu_data, traj_pos, hidden_state)
+                img_out = model.VO(curr_img_pairs)
+                imu_out = model.IO(curr_imu_data)
+                cat_out = torch.cat((img_out, imu_out), 2)
+
+                if (j+1) % args.window_size != 0:
+                    window_buffer[:,j % args.window_size] = cat_out
+                    continue
+                window_buffer[:,j % args.window_size] = cat_out
+                out_twist, hidden_state = model(window_buffer, traj_pos, hidden_state)
                 # convert se3 to SE3 for loss and loop input ...
                 new_pose = process_output(out_twist, traj_pos)
-                gt_twist = get_twist(gt_data)
+
+                gt_twist = get_twist(torch.cat((prev_gt, gt_data[:, [1], :]), 1))
+                prev_gt = gt_data[:, [1], :]
                 traj_loss, twist_loss, global_loss  = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :], global_weight)
 
-                window_total_loss += traj_loss
-                window_twist_loss += twist_loss
-                window_global_loss += global_loss
+                traj_loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                optimizer.step()
+                optimizer.zero_grad()
 
-                if (j+1) % args.window_size == 0:
-                    (window_total_loss/args.window_size).backward()
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                    optimizer.step()
-                    optimizer.zero_grad()
+                total_loss += traj_loss.detach()
+                total_twist_loss += twist_loss.detach()
+                total_global_loss += global_loss.detach()
 
-                    total_loss += window_total_loss.detach()
-                    total_twist_loss += window_twist_loss.detach()
-                    total_global_loss += window_global_loss.detach()
-
-                    window_total_loss = 0
-                    window_twist_loss = 0
-                    window_global_loss = 0
-                    hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
+                hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
+                window_buffer = torch.zeros((args.traj_set, 10, 1030)).to(device)
 
                 traj_pos = new_pose.detach()
 
@@ -189,7 +190,7 @@ if __name__ == '__main__':
     parser.add_argument('--window_size', type=int, default=10)
     parser.add_argument('--l_rate', type=float, default=1e-4)
     parser.add_argument('--log_path',default="./Phase2/Logs/",help="logs path")
-    parser.add_argument('--run_name', default="new_single",help="folder to store images")
+    parser.add_argument('--run_name', default="batched",help="folder to store images")
     parser.add_argument('--checkpoint_path',default="./Phase2/Checkpoints/",help="checkpoints path")
     parser.add_argument('--save_ckpt_epoch',default=5,help="num of iteration to save checkpoint")
     args = parser.parse_args()
