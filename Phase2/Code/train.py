@@ -215,9 +215,9 @@ def train(args):
                 epoch_twist_loss_val += twist_loss/sequence_length_val
             
 
-            writer.add_scalar("Total_epoch_train_loss", epoch_total_loss_val/len(val_dataloader), (epoch_i + 1))
-            writer.add_scalar("Twist_epoch_train_loss", epoch_twist_loss_val/len(val_dataloader), (epoch_i + 1))
-            writer.add_scalar("Pose_epoch_train_loss", epoch_global_loss_val/len(val_dataloader), (epoch_i + 1))
+            writer.add_scalar("Total_epoch_val_loss", epoch_total_loss_val/len(val_dataloader), (epoch_i + 1))
+            writer.add_scalar("Twist_epoch_val_loss", epoch_twist_loss_val/len(val_dataloader), (epoch_i + 1))
+            writer.add_scalar("Pose_epoch_val_loss", epoch_global_loss_val/len(val_dataloader), (epoch_i + 1))
             print(f"Total Val Loss: {epoch_total_loss_val/len(val_dataloader)}")
             print(f"Twist Val Loss: {epoch_twist_loss_val/len(val_dataloader)}")
             print(f"Pose Val Loss: {epoch_global_loss_val/len(val_dataloader)}")
