@@ -56,8 +56,8 @@ def train(args):
 
     # Initialize the DataLoader
     # batch_first=True is standard for your VINet LSTM training 
-    dataloader = DataLoader(dataset, batch_size=args.traj_set, shuffle=True, num_workers=2, drop_last=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=args.traj_set, shuffle=True, num_workers=2, drop_last=True)
+    dataloader = DataLoader(dataset, batch_size=args.traj_set, shuffle=True, num_workers=2, drop_last=False)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.traj_set, shuffle=True, num_workers=2, drop_last=False)
 
     if not os.path.exists(args.checkpoint_path):
         os.makedirs(args.checkpoint_path)
@@ -80,7 +80,6 @@ def train(args):
     scale_x = (final_x - init_x)/(epochs - 1)
 
     for epoch_i in tqdm(range(epochs), desc="Epochs"):
-        model.train()
 
         # find the global and f2f weights for this epoch
         global_weight = np.exp(-(init_x + (scale_x*epoch_i)))
@@ -88,10 +87,10 @@ def train(args):
 
         print(f"Epoch: {epoch_i + 1}")
 
-        model.hidden_state = None
         epoch_total_loss_train = 0
         epoch_twist_loss_train = 0
         epoch_global_loss_train = 0
+        model.train()
         for traj_set_i, (video_paths, imu, gt) in enumerate(dataloader):
             
             # images shape: [Batch, Seq_Len, C, H, W]
@@ -116,6 +115,7 @@ def train(args):
             window_twist_loss = 0
             window_global_loss = 0
 
+            model.hidden_state = None
             for j in tqdm(range(sequence_length_train - 1), desc="Sequence_Train"):
                 curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                 curr_imu_data = imu[:, j*10:(j+1)*10]
@@ -171,6 +171,7 @@ def train(args):
         epoch_global_loss_val = 0
 
         with torch.no_grad():
+            model.eval()
             for traj_set_i, (video_paths, imu, gt) in enumerate(val_dataloader):
                 
                 # images shape: [Batch, Seq_Len, C, H, W]
@@ -191,6 +192,7 @@ def train(args):
                 total_twist_loss = 0
                 total_global_loss = 0
 
+                model.hidden_state = None
                 for j in tqdm(range(sequence_length_val - 1), desc="Sequence_Val"):
                     curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                     curr_imu_data = imu[:, j*10:(j+1)*10]
