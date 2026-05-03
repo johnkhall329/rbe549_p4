@@ -66,8 +66,6 @@ class DeepVIO(nn.Module):
         self.linear1 = nn.Linear(1024, 128)
         self.linear2 = nn.Linear(128, 6)
 
-        self.hidden_state = None
-
         if model_type == 0:
             self.VO = DeepVO()
             self.IO = None
@@ -95,7 +93,7 @@ class DeepVIO(nn.Module):
                 batch_first=True)
         
 
-    def forward(self, image, imu, xyzQ):
+    def forward(self, image, imu, xyzQ, hidden_state):
         # image (Batch, 2, 3, H, W)
         # imu (Batch, 10, 6)
         # xyzQ (1,1,7)
@@ -112,13 +110,12 @@ class DeepVIO(nn.Module):
             imu_out = self.IO(imu)
             cat_out = torch.cat((imu_out, xyzQ), 2)
         
-        r_out, (h_n, h_c) = self.rnn(cat_out, self.hidden_state)
-        self.hidden_state = (h_n.detach(), h_c.detach())
+        r_out, (h_n, h_c) = self.rnn(cat_out, hidden_state)
         # self.hidden_state = (h_n, h_c)
         l_out1 = self.linear1(r_out[:,-1,:])
         l_out2 = self.linear2(l_out1)
 
-        return l_out2
+        return l_out2, (h_n, h_c)
 
 if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

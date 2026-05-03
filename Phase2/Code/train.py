@@ -24,6 +24,7 @@ def loss(output_twist, output_pose, gt_twist, gt_pose, global_weight, rot_weight
     twist_loss = v_loss + rot_weight*omega_loss
 
     pos_loss = F.mse_loss(output_pose[:,0,:3], gt_pose[:,0,:3])
+    
     quat_loss = torch.mean(quat_weight*(1 - torch.linalg.vecdot(output_pose[:,0, 3:], gt_pose[:,0,3:])))
     global_loss = pos_loss+quat_loss
 
@@ -66,8 +67,8 @@ def train(args):
     writer = SummaryWriter(args.log_path+args.run_name)
 
     optimizer = torch.optim.AdamW(model.parameters(), args.l_rate)
-    global_weight_init = 0.01
-    global_weight_final = 0.9
+    global_weight_init = 0.001
+    global_weight_final = 0.01
     init_x = -np.log(global_weight_init)
     final_x = -np.log(global_weight_final)
 
@@ -82,7 +83,6 @@ def train(args):
 
         print(f"Epoch: {epoch_i}")
 
-        model.hidden_state = None
         for traj_set_i, (video_paths, imu, gt) in enumerate(dataloader):
             
             # images shape: [Batch, Seq_Len, C, H, W]
@@ -106,14 +106,14 @@ def train(args):
             window_twist_loss = 0
             window_global_loss = 0
 
+            hidden_state = None
             for j in tqdm(range(decoders[0].metadata.num_frames - 1), desc="Sequence"):
                 curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                 curr_imu_data = imu[:, j*10:(j+1)*10]
                 gt_data = relative_start(gt[:, j:j+2], start_pos)
                 curr_img_pairs = curr_img_pairs.to(device)
 
-
-                out_twist = model(curr_img_pairs, curr_imu_data, traj_pos)
+                out_twist, hidden_state = model(curr_img_pairs, curr_imu_data, traj_pos, hidden_state)
                 # convert se3 to SE3 for loss and loop input ...
                 new_pose = process_output(out_twist, traj_pos)
                 gt_twist = get_twist(gt_data)
@@ -136,12 +136,13 @@ def train(args):
                     window_total_loss = 0
                     window_twist_loss = 0
                     window_global_loss = 0
+                    hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
 
                 traj_pos = new_pose.detach()
 
             writer.add_scalar("Total_loss", total_loss/decoders[0].metadata.num_frames, traj_set_i+(epoch_i*len(dataloader)))
-            writer.add_scalar("Twist_loss", twist_loss/decoders[0].metadata.num_frames, traj_set_i+(epoch_i*len(dataloader)))
-            writer.add_scalar("Pose_loss", global_loss/decoders[0].metadata.num_frames, traj_set_i+(epoch_i*len(dataloader)))
+            writer.add_scalar("Twist_loss", total_twist_loss/decoders[0].metadata.num_frames, traj_set_i+(epoch_i*len(dataloader)))
+            writer.add_scalar("Pose_loss", total_global_loss/decoders[0].metadata.num_frames, traj_set_i+(epoch_i*len(dataloader)))
         
 
         if epoch_i % args.save_ckpt_epoch == 0 and epoch_i > 0:
@@ -183,12 +184,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', type=int, default=2, 
         help='0: VO, 1: IO, 2: VIO.')
-    parser.add_argument('--traj_set', type=int, default=3)
+    parser.add_argument('--traj_set', type=int, default=1)
     parser.add_argument('--epochs', type=int, default=30)
     parser.add_argument('--window_size', type=int, default=10)
     parser.add_argument('--l_rate', type=float, default=1e-4)
     parser.add_argument('--log_path',default="./Phase2/Logs/",help="logs path")
-    parser.add_argument('--run_name', default="test",help="folder to store images")
+    parser.add_argument('--run_name', default="new_single",help="folder to store images")
     parser.add_argument('--checkpoint_path',default="./Phase2/Checkpoints/",help="checkpoints path")
     parser.add_argument('--save_ckpt_epoch',default=5,help="num of iteration to save checkpoint")
     args = parser.parse_args()

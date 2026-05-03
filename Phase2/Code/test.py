@@ -103,7 +103,7 @@ def test(args):
         output_poses[:,0] = times
         gt_poses[:,0] = times
 
-        model.hidden_state = None
+        hidden_state = None
         for j in tqdm(range(decoders[0].metadata.num_frames - 1), desc="Sequence"):
             curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
             curr_imu_data = imu[:, j*10:(j+1)*10]
@@ -111,7 +111,7 @@ def test(args):
             curr_img_pairs = curr_img_pairs.to(device)
 
             with torch.no_grad():
-                out_twist = model(curr_img_pairs, curr_imu_data, traj_pos)
+                out_twist = model(curr_img_pairs, curr_imu_data, traj_pos, hidden_state)
             # convert se3 to SE3 for loss and loop input ...
             new_pose = process_output(out_twist, traj_pos)
             gt_twist = get_twist(gt_data)
@@ -127,9 +127,9 @@ def test(args):
             output_poses[j+1,1:] = np_pose[0,0,[0,1,2,4,5,6,3]] # switch real component to end
             gt_poses[j+1,1:] = gt_data[0,1,[0,1,2,4,5,6,3]].detach().cpu().numpy()
 
-        # print(f"Total Loss: {total_loss/decoders[0].metadata.num_frames}")
-        # print(f"Twist Loss: {total_twist_loss/decoders[0].metadata.num_frames}")
-        # print(f"Pose Loss: {total_global_loss/decoders[0].metadata.num_frames}")
+        print(f"Total Loss: {total_loss/decoders[0].metadata.num_frames}")
+        print(f"Twist Loss: {total_twist_loss/decoders[0].metadata.num_frames}")
+        print(f"Pose Loss: {total_global_loss/decoders[0].metadata.num_frames}")
 
         np.savetxt(output_dir+'stamped_traj_estimate.txt', output_poses, header="time x y z qx qy qz qw")
         np.savetxt(output_dir+'stamped_groundtruth.txt', gt_poses, header="time x y z qx qy qz qw")
@@ -185,7 +185,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_path',default="./Phase2/Output/",help="logs path")
     parser.add_argument('--run_name', default="test",help="folder to store images")
     parser.add_argument('--checkpoint_path',default="./Phase2/Checkpoints/",help="checkpoints path")
-    parser.add_argument('--model_name',default="test30Final.ckpt",help="checkpoint model name")
+    parser.add_argument('--model_name',default="single_pt220.ckpt",help="checkpoint model name")
     args = parser.parse_args()
 
     test(args)
