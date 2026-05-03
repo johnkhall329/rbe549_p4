@@ -73,7 +73,7 @@ def train(args):
 
     optimizer = torch.optim.AdamW(model.parameters(), args.l_rate)
     global_weight_init = 0.001
-    global_weight_final = 0.1
+    global_weight_final = 0.01
     init_x = -np.log(global_weight_init)
     final_x = -np.log(global_weight_final)
 
