@@ -24,7 +24,12 @@ def loss(output_twist, output_pose, gt_twist, gt_pose, global_weight, rot_weight
     twist_loss = v_loss + rot_weight*omega_loss
 
     pos_loss = F.mse_loss(output_pose[:,0,:3], gt_pose[:,0,:3])
-    quat_loss = torch.mean(quat_weight*(1 - torch.linalg.vecdot(output_pose[:,0, 3:], gt_pose[:,0,3:])))
+    # GEMINI SUGGESTION, EVALUATE FURTHER: Absolute value handles the double-cover property of quaternions properly across the batch
+    # PREVIOUSLY WAS: quat_loss = torch.mean(quat_weight * (1 - torch.linalg.vecdot(output_pose[:, 0, 3:], gt_pose[:, 0, 3:])))
+    q_pred = F.normalize(output_pose[:, 0, 3:], p=2, dim=-1)
+    q_gt = F.normalize(gt_pose[:, 0, 3:], p=2, dim=-1)
+    quat_loss = torch.mean(quat_weight * (1 - torch.abs(torch.linalg.vecdot(q_pred, q_gt))))
+
     global_loss = pos_loss+quat_loss
 
     total_loss = (1-global_weight)*twist_loss + global_weight*global_loss
@@ -81,7 +86,7 @@ def train(args):
         global_weight = np.exp(-(init_x + (scale_x*epoch_i)))
         # print(global_weight)
 
-        print(f"Epoch: {epoch_i}")
+        print(f"Epoch: {epoch_i + 1}")
 
         model.hidden_state = None
         epoch_total_loss_train = 0
@@ -111,7 +116,7 @@ def train(args):
             window_twist_loss = 0
             window_global_loss = 0
 
-            for j in tqdm(range(sequence_length_train - 1), desc="Sequence"):
+            for j in tqdm(range(sequence_length_train - 1), desc="Sequence_Train"):
                 curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                 curr_imu_data = imu[:, j*10:(j+1)*10]
                 gt_data = relative_start(gt[:, j:j+2], start_pos)
@@ -155,7 +160,6 @@ def train(args):
         writer.add_scalar("Total_epoch_train_loss", epoch_total_loss_train/len(dataloader), (epoch_i + 1))
         writer.add_scalar("Twist_epoch_train_loss", epoch_twist_loss_train/len(dataloader), (epoch_i + 1))
         writer.add_scalar("Pose_epoch_train_loss", epoch_global_loss_train/len(dataloader), (epoch_i + 1))
-        print(f"Epoch: {epoch_i + 1}")
         print(f"Total Train Loss: {epoch_total_loss_train/len(dataloader)}")
         print(f"Twist Train Loss: {epoch_twist_loss_train/len(dataloader)}")
         print(f"Pose Train Loss: {epoch_global_loss_train/len(dataloader)}")
@@ -187,7 +191,7 @@ def train(args):
                 total_twist_loss = 0
                 total_global_loss = 0
 
-                for j in tqdm(range(sequence_length_val - 1), desc="Sequence"):
+                for j in tqdm(range(sequence_length_val - 1), desc="Sequence_Val"):
                     curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                     curr_imu_data = imu[:, j*10:(j+1)*10]
                     gt_data = relative_start(gt[:, j:j+2], start_pos)
@@ -214,7 +218,6 @@ def train(args):
             writer.add_scalar("Total_epoch_train_loss", epoch_total_loss_val/len(val_dataloader), (epoch_i + 1))
             writer.add_scalar("Twist_epoch_train_loss", epoch_twist_loss_val/len(val_dataloader), (epoch_i + 1))
             writer.add_scalar("Pose_epoch_train_loss", epoch_global_loss_val/len(val_dataloader), (epoch_i + 1))
-            print(f"Epoch: {epoch_i + 1}")
             print(f"Total Val Loss: {epoch_total_loss_val/len(val_dataloader)}")
             print(f"Twist Val Loss: {epoch_twist_loss_val/len(val_dataloader)}")
             print(f"Pose Val Loss: {epoch_global_loss_val/len(val_dataloader)}")
