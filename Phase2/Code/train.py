@@ -131,11 +131,11 @@ def train(args):
                 traj_loss, twist_loss, global_loss  = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :], global_weight)
 
                 window_total_loss += traj_loss
-                window_twist_loss += twist_loss
+                window_twist_loss += twist_loss*1000
                 window_global_loss += global_loss
 
                 if (j+1) % args.window_size == 0:
-                    (window_total_loss/args.window_size).backward()
+                    (window_twist_loss/args.window_size).backward()
                     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                     optimizer.step()
                     optimizer.zero_grad()

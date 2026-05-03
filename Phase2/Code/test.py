@@ -26,6 +26,7 @@ def loss(output_twist, output_pose, gt_twist, gt_pose, global_weight, rot_weight
     v_loss = F.l1_loss(output_twist[:,:3], gt_twist[:,:3])
     omega_loss = F.l1_loss(output_twist[:,3:], gt_twist[:,3:])
     twist_loss = v_loss + rot_weight*omega_loss
+    print(f"twist_loss: {twist_loss} gt twist norm: {gt_twist.norm()} out twist norm: {output_twist.norm()}")
 
     pos_loss = F.mse_loss(output_pose[:,0,:3], gt_pose[:,0,:3])
     quat_loss = torch.mean(quat_weight*(1 - torch.linalg.vecdot(output_pose[:,0, 3:], gt_pose[:,0,3:])))
@@ -103,7 +104,7 @@ def test(args):
         output_poses[:,0] = times
         gt_poses[:,0] = times
 
-        model.hidden_state = None
+        hidden_state = None
         for j in tqdm(range(decoders[0].metadata.num_frames - 1), desc="Sequence"):
             curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
             curr_imu_data = imu[:, j*10:(j+1)*10]
@@ -188,7 +189,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_path',default="./Phase2/Output/",help="logs path")
     parser.add_argument('--run_name', default="test",help="folder to store images")
     parser.add_argument('--checkpoint_path',default="./Phase2/Checkpoints/",help="checkpoints path")
-    parser.add_argument('--model_name',default="test_abs_drop_last10.ckpt",help="checkpoint model name")
+    parser.add_argument('--model_name',default="gt_passthrough_test5.ckpt",help="checkpoint model name")
     args = parser.parse_args()
 
     test(args)
