@@ -115,7 +115,7 @@ class DeepVIO(nn.Module):
         r_out, (h_n, h_c) = self.rnn(cat_out, hidden_state)
         # self.hidden_state = (h_n.detach(), h_c.detach())
         # self.hidden_state = (h_n, h_c)
-        l_out1 = self.linear1(r_out[:,-1,:])
+        l_out1 = F.relu(self.linear1(r_out[:,-1,:]))
         l_out2 = self.linear2(l_out1)
 
         return l_out2, (h_n, h_c)
