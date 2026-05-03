@@ -111,7 +111,7 @@ def test(args):
             curr_img_pairs = curr_img_pairs.to(device)
 
             with torch.no_grad():
-                out_twist = model(curr_img_pairs, curr_imu_data, traj_pos)
+                out_twist, hidden_state = model(curr_img_pairs, curr_imu_data, traj_pos, hidden_state)
             # convert se3 to SE3 for loss and loop input ...
             new_pose = process_output(out_twist, traj_pos)
             gt_twist = get_twist(gt_data)
@@ -126,6 +126,9 @@ def test(args):
             np_pose = traj_pos.cpu().numpy()
             output_poses[j+1,1:] = np_pose[0,0,[0,1,2,4,5,6,3]] # switch real component to end
             gt_poses[j+1,1:] = gt_data[0,1,[0,1,2,4,5,6,3]].detach().cpu().numpy()
+        
+
+            hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
 
         print(f"Total Loss: {total_loss/decoders[0].metadata.num_frames}")
         print(f"Twist Loss: {total_twist_loss/decoders[0].metadata.num_frames}")

@@ -72,8 +72,8 @@ def train(args):
     writer = SummaryWriter(args.log_path+args.run_name)
 
     optimizer = torch.optim.AdamW(model.parameters(), args.l_rate)
-    global_weight_init = 0.01
-    global_weight_final = 0.9
+    global_weight_init = 0.001
+    global_weight_final = 0.1
     init_x = -np.log(global_weight_init)
     final_x = -np.log(global_weight_final)
 
@@ -115,7 +115,7 @@ def train(args):
             window_twist_loss = 0
             window_global_loss = 0
 
-            model.hidden_state = None
+            hidden_state = None
             for j in tqdm(range(sequence_length_train - 1), desc="Sequence_Train"):
                 curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                 curr_imu_data = imu[:, j*10:(j+1)*10]
@@ -123,7 +123,7 @@ def train(args):
                 curr_img_pairs = curr_img_pairs.to(device)
 
 
-                out_twist = model(curr_img_pairs, curr_imu_data, traj_pos)
+                out_twist, hidden_state = model(curr_img_pairs, curr_imu_data, traj_pos, hidden_state)
                 # convert se3 to SE3 for loss and loop input ...
                 new_pose = process_output(out_twist, traj_pos)
                 gt_twist = get_twist(gt_data)
@@ -146,6 +146,8 @@ def train(args):
                     window_total_loss = 0
                     window_twist_loss = 0
                     window_global_loss = 0
+                    
+                    hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
 
                 traj_pos = new_pose.detach()
 
@@ -192,7 +194,7 @@ def train(args):
                 total_twist_loss = 0
                 total_global_loss = 0
 
-                model.hidden_state = None
+                hidden_state = None
                 for j in tqdm(range(sequence_length_val - 1), desc="Sequence_Val"):
                     curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                     curr_imu_data = imu[:, j*10:(j+1)*10]
@@ -200,7 +202,7 @@ def train(args):
                     curr_img_pairs = curr_img_pairs.to(device)
 
 
-                    out_twist = model(curr_img_pairs, curr_imu_data, traj_pos)
+                    out_twist, hidden_state = model(curr_img_pairs, curr_imu_data, traj_pos, hidden_state)
                     # convert se3 to SE3 for loss and loop input ...
                     new_pose = process_output(out_twist, traj_pos)
                     gt_twist = get_twist(gt_data)
@@ -211,6 +213,7 @@ def train(args):
                     total_global_loss += global_loss.item()
 
                     traj_pos = new_pose.detach()
+                    hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
 
                 epoch_total_loss_val += total_loss/sequence_length_val
                 epoch_global_loss_val += total_global_loss/sequence_length_val
