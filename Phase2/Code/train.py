@@ -56,8 +56,8 @@ def train(args):
 
     # Initialize the DataLoader
     # batch_first=True is standard for your VINet LSTM training 
-    dataloader = DataLoader(dataset, batch_size=args.traj_set, shuffle=True, num_workers=2)
-    val_dataloader = DataLoader(val_dataset, batch_size=args.traj_set, shuffle=True, num_workers=2)
+    dataloader = DataLoader(dataset, batch_size=args.traj_set, shuffle=True, num_workers=2, drop_last=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.traj_set, shuffle=True, num_workers=2, drop_last=True)
 
     if not os.path.exists(args.checkpoint_path):
         os.makedirs(args.checkpoint_path)
