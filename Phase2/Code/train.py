@@ -105,7 +105,7 @@ def train(args):
             # print(f"Batch {i} - Images: {data_transforms(decoders[0][0]).shape}, IMU: {imu.shape}, GT: {gt.shape}")
 
             start_pos = gt[:,[0]]
-            traj_pos = relative_start(start_pos,start_pos)
+            traj_pos = start_pos # relative_start(start_pos,start_pos) GT_TEST
 
             total_loss = 0
             total_twist_loss = 0
@@ -119,7 +119,8 @@ def train(args):
             for j in tqdm(range(sequence_length_train - 1), desc="Sequence_Train"):
                 curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                 curr_imu_data = imu[:, j*10:(j+1)*10]
-                gt_data = relative_start(gt[:, j:j+2], start_pos)
+                # gt_data = relative_start(gt[:, j:j+2], start_pos) GT_TEST
+                gt_data = gt[:, j:j+2] 
                 curr_img_pairs = curr_img_pairs.to(device)
 
 
@@ -149,7 +150,8 @@ def train(args):
                     
                     hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
 
-                traj_pos = new_pose.detach()
+                # traj_pos = new_pose.detach() GT_TEST
+                traj_pos = gt_data[:, [1], :]
 
             writer.add_scalar("Total_trajectory_loss", total_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
             writer.add_scalar("Twist_trajectory_loss", total_twist_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
@@ -188,7 +190,8 @@ def train(args):
                 # print(f"Batch {i} - Images: {data_transforms(decoders[0][0]).shape}, IMU: {imu.shape}, GT: {gt.shape}")
 
                 start_pos = gt[:,[0]]
-                traj_pos = relative_start(start_pos,start_pos)
+                # traj_pos = relative_start(start_pos,start_pos)
+                traj_pos = start_pos # relative_start(start_pos,start_pos) GT_TEST
 
                 total_loss = 0
                 total_twist_loss = 0
@@ -198,7 +201,8 @@ def train(args):
                 for j in tqdm(range(sequence_length_val - 1), desc="Sequence_Val"):
                     curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                     curr_imu_data = imu[:, j*10:(j+1)*10]
-                    gt_data = relative_start(gt[:, j:j+2], start_pos)
+                    # gt_data = relative_start(gt[:, j:j+2], start_pos) GT_TEST
+                    gt_data = gt[:, j:j+2] 
                     curr_img_pairs = curr_img_pairs.to(device)
 
 
@@ -212,7 +216,8 @@ def train(args):
                     total_twist_loss += twist_loss.item()
                     total_global_loss += global_loss.item()
 
-                    traj_pos = new_pose.detach()
+                    # traj_pos = new_pose.detach() GT_TEST
+                    traj_pos = gt_data[:, [1], :]
                     hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
 
                 epoch_total_loss_val += total_loss/sequence_length_val
