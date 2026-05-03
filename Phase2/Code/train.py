@@ -21,7 +21,7 @@ print(f"USING DEVICE: {device}")
 def loss(output_twist, output_pose, gt_twist, gt_pose, global_weight, rot_weight=1.0, quat_weight=2.5 ):
     v_loss = F.l1_loss(output_twist[:,:3], gt_twist[:,:3])
     omega_loss = F.l1_loss(output_twist[:,3:], gt_twist[:,3:])
-    twist_loss = v_loss + rot_weight*omega_loss
+    twist_loss = v_loss + (rot_weight*omega_loss)
 
     pos_loss = F.mse_loss(output_pose[:,0,:3], gt_pose[:,0,:3])
     # GEMINI SUGGESTION, EVALUATE FURTHER: Absolute value handles the double-cover property of quaternions properly across the batch
@@ -32,7 +32,7 @@ def loss(output_twist, output_pose, gt_twist, gt_pose, global_weight, rot_weight
 
     global_loss = pos_loss+quat_loss
 
-    total_loss = (1-global_weight)*twist_loss + global_weight*global_loss
+    total_loss = ((1-global_weight)*twist_loss) + (global_weight*global_loss)
 
     return total_loss, twist_loss, global_loss
 
@@ -150,11 +150,11 @@ def train(args):
                 traj_pos = new_pose.detach()
 
             writer.add_scalar("Total_trajectory_loss", total_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
-            writer.add_scalar("Twist_trajectory_loss", twist_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
-            writer.add_scalar("Pose_trajectory_loss", global_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
+            writer.add_scalar("Twist_trajectory_loss", total_twist_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
+            writer.add_scalar("Pose_trajectory_loss", total_global_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
             epoch_total_loss_train += total_loss/sequence_length_train
-            epoch_global_loss_train += global_loss/sequence_length_train
-            epoch_twist_loss_train += twist_loss/sequence_length_train
+            epoch_global_loss_train += total_global_loss/sequence_length_train
+            epoch_twist_loss_train += total_twist_loss/sequence_length_train
             
         
         writer.add_scalar("Total_epoch_train_loss", epoch_total_loss_train/len(dataloader), (epoch_i + 1))
@@ -213,8 +213,8 @@ def train(args):
                     traj_pos = new_pose.detach()
 
                 epoch_total_loss_val += total_loss/sequence_length_val
-                epoch_global_loss_val += global_loss/sequence_length_val
-                epoch_twist_loss_val += twist_loss/sequence_length_val
+                epoch_global_loss_val += total_global_loss/sequence_length_val
+                epoch_twist_loss_val += total_twist_loss/sequence_length_val
             
 
             writer.add_scalar("Total_epoch_val_loss", epoch_total_loss_val/len(val_dataloader), (epoch_i + 1))
