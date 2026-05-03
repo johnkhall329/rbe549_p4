@@ -127,7 +127,7 @@ def train(args):
                 out_twist, hidden_state = model(curr_img_pairs, curr_imu_data, traj_pos, hidden_state)
                 # convert se3 to SE3 for loss and loop input ...
                 new_pose = process_output(out_twist/1000, traj_pos)
-                gt_twist*1000 = get_twist(gt_data)
+                gt_twist = get_twist(gt_data)*1000
                 traj_loss, twist_loss, global_loss  = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :], global_weight)
 
                 window_total_loss += traj_loss
