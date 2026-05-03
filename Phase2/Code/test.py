@@ -103,6 +103,7 @@ def test(args):
         output_poses[:,0] = times
         gt_poses[:,0] = times
 
+        model.hidden_state = None
         for j in tqdm(range(decoders[0].metadata.num_frames - 1), desc="Sequence"):
             curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
             curr_imu_data = imu[:, j*10:(j+1)*10]

@@ -82,6 +82,7 @@ def train(args):
 
         print(f"Epoch: {epoch_i}")
 
+        model.hidden_state = None
         for traj_set_i, (video_paths, imu, gt) in enumerate(dataloader):
             
             # images shape: [Batch, Seq_Len, C, H, W]
@@ -122,8 +123,9 @@ def train(args):
                 window_twist_loss += twist_loss
                 window_global_loss += global_loss
 
-                if (j+1) % 10 == 0:
-                    window_global_loss.backward()
+                if (j+1) % args.window_size == 0:
+                    (window_total_loss/args.window_size).backward()
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                     optimizer.step()
                     optimizer.zero_grad()
 
@@ -183,6 +185,7 @@ if __name__ == '__main__':
         help='0: VO, 1: IO, 2: VIO.')
     parser.add_argument('--traj_set', type=int, default=3)
     parser.add_argument('--epochs', type=int, default=30)
+    parser.add_argument('--window_size', type=int, default=10)
     parser.add_argument('--l_rate', type=float, default=1e-4)
     parser.add_argument('--log_path',default="./Phase2/Logs/",help="logs path")
     parser.add_argument('--run_name', default="test",help="folder to store images")
