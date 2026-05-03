@@ -333,6 +333,115 @@ class UAVTrajectoryGenerator:
         final_gt = np.vstack(all_gt)
 
         return all_states, final_imu, final_gt
+    
+    def generate_start_end_points(self, min_dist=1.25, max_dist = 5):
+        # Define your workspace bounds
+        # x: 0-10, y: 0-10, z: 1-10
+        low = np.array([-4, -4, 3])
+        high = np.array([4, 4, 8])
+        yaw = np.random.uniform(0, 2*np.pi)
+        
+        while True:
+            # Generate random start and end points within bounds
+            start_point = np.random.uniform(low, high)
+            end_point = np.random.uniform(low, high)
+            
+            # Calculate Euclidean distance
+            dist = np.linalg.norm(end_point - start_point)
+            
+            # Only return if the length constraint is satisfied
+            if dist >= min_dist and dist <= max_dist:
+                return start_point, end_point, 0.0, yaw
+
+    def generate_circle_changing_height_params(self):
+        radius = np.random.uniform(1.0, 3.5)
+        z_base = np.random.uniform(3.5, 7.0)
+        z_amplitude = np.random.uniform(0.5, 1.5)
+        speed = np.random.uniform(0.3, 0.8)
+        z_speed = np.random.uniform(0.5, 1.5)
+
+        return radius, z_base, z_amplitude, speed, z_speed
+
+    def generate_square_params(self):
+        yaw_val = np.random.uniform(0, 2 * np.pi)
+        z_base = np.random.uniform(3.5, 7.0)
+        side_length = np.random.uniform(1.5, 5.0)        
+        
+        return side_length, z_base, yaw_val
+
+    def generate_figure8_params(self):
+        z_base = np.random.uniform(3.5, 7.0)
+        speed = np.random.uniform(0.4, 1.5)
+        radius_x = np.random.uniform(1.5, 3.5)
+        radius_y = np.random.uniform(1.5, 3.5)
+                
+        return radius_x, radius_y, z_base, speed
+
+    def generate_circle_params(self):
+        radius = np.random.uniform(1.0, 3.5)
+        z_base = np.random.uniform(3.5, 7.0)
+        speed = np.random.uniform(0.3, 0.8)
+
+        return radius, z_base, speed
+
+    def get_random_trajectory_params(self, trajectory_type: str):
+        """
+        Looks up and executes the appropriate parameter generation function
+        based on the provided string key.
+        """
+        # Map your string keys directly to the function objects
+        function_map = {
+            "line": self.generate_start_end_points,
+            "circle_changing_height": self.generate_circle_changing_height_params,
+            "square": self.generate_square_params,
+            "figure8": self.generate_figure8_params,
+            "circle": self.generate_circle_params
+        }
+        
+        # Retrieve the function from the dictionary
+        func = function_map.get(trajectory_type.lower())
+        
+        # Check if the string matched any valid key
+        if func is None:
+            valid_keys = list(function_map.keys())
+            raise ValueError(f"Unknown trajectory type '{trajectory_type}'. Valid options are: {valid_keys}")
+        
+        # Call the retrieved function and return its result
+        return func()
+    
+    def generate_random_trajectory(self, trajectory_type: str, duration: float, frequency: float):
+        """
+        Generates dynamic randomized parameters and returns the resulting trajectory data
+        by mapping string keys to the corresponding generator methods.
+        """
+        
+        # The dictionary maps strings to: (1) The specific randomizer, (2) The generator function to call
+        trajectory_map = {
+            "line": (self.generate_start_end_points, self.generate_polynomial_line),
+            "circle": (self.generate_circle_params, self.generate_circle),
+            "square": (self.generate_square_params, self.generate_square),
+            "circle_changing_height": (self.generate_circle_changing_height_params, self.generate_circle_changing_height),
+            "figure8": (self.generate_figure8_params, self.generate_figure8)
+        }
+        
+        # Retrieve lookup tuple
+        lookup = trajectory_map.get(trajectory_type.lower())
+        
+        if lookup is None:
+            valid_types = list(trajectory_map.keys())
+            raise ValueError(f"Unknown trajectory type '{trajectory_type}'. Valid types: {valid_types}")
+        
+        # Extract the random parameter generator and the target method
+        param_func, target_method = lookup
+        
+        # Step 1: Generate the randomized parameters
+        random_params = param_func()
+        
+        # Step 2: Combine duration and frequency with the randomized parameters
+        all_params = [duration, frequency, *random_params]
+        
+        # Step 3: Unpack and call the specific trajectory generation method
+        return target_method(*all_params)
 
 def visualize_trajectory_3d(states):
     """
