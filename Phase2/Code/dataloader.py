@@ -120,4 +120,4 @@ class DeepVIORandomDataset(Dataset):
 
         start_t = 0 if "TrajectoriesLines" in seq_type else np.random.randint(600) 
 
-        return video_path, imu_tensor[start_t:start_t+400], gt_tensor[start_t:start_t+400], start_t
+        return video_path, imu_tensor[start_t*10:(start_t+400)*10], gt_tensor[start_t:start_t+400], start_t

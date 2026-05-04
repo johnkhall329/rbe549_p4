@@ -145,7 +145,7 @@ def train(args):
                 gt_twist = get_twist(gt_data)
                 traj_loss, twist_loss, global_loss  = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :], global_weight)
 
-                if epoch_i+1 == args.epochs and args.dipslay:
+                if epoch_i+1 == args.epochs and args.display:
                     output_poses[traj_set_i*args.traj_set:(traj_set_i+1)*args.traj_set,j+1,1:] = new_pose[:,0,[0,1,2,4,5,6,3]].detach().cpu().numpy() # switch real component to end
                     gt_poses[traj_set_i*args.traj_set:(traj_set_i+1)*args.traj_set,j+1,1:] = gt_data[:,1,[0,1,2,4,5,6,3]].detach().cpu().numpy()
 
