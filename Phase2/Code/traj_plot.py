@@ -3,13 +3,13 @@ import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as Rot
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
-def plot_traj(gt_poses, output_poses, times, name):
+def plot_traj(gt_poses, output_poses, times, name, save_dir='', save=False, display=True):
     fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111, projection='3d')
     ax.plot(gt_poses[:,1], gt_poses[:,2], gt_poses[:,3], label='Ground Truth Trajectory', color='g', linewidth=2)
     est_points = output_poses[:,1:4].reshape(-1,1,3)
     segments = np.concatenate([est_points[:-1], est_points[1:]], axis=1)
-    lc = Line3DCollection(segments, cmap='viridis')
+    lc = Line3DCollection(segments, cmap='jet')
     lc.set_array(times)
     lc.set_linewidth(2)
     lc.set_label('Estimated Trajectory')
@@ -22,6 +22,9 @@ def plot_traj(gt_poses, output_poses, times, name):
     ax.set_xlim(np.min([gt_poses[:,1],output_poses[:,1]]), np.max([gt_poses[:,1],output_poses[:,1]]))
     ax.set_ylim(np.min([gt_poses[:,2],output_poses[:,2]]), np.max([gt_poses[:,2],output_poses[:,2]]))
     ax.set_zlim(np.min([gt_poses[:,3],output_poses[:,3]]), np.max([gt_poses[:,3],output_poses[:,3]]))
+
+    if save:
+        plt.savefig(save_dir+name+'_3dplot')
     
     fig2 = plt.figure(figsize=(12, 8))
     gt_rpy = np.zeros((gt_poses.shape[0],3))
@@ -43,4 +46,8 @@ def plot_traj(gt_poses, output_poses, times, name):
     plt.ylabel("Angle (Deg)")
     plt.legend()
 
-    plt.show()
+    if save:
+        plt.savefig(save_dir+name+'_rpy')
+
+    if display:
+        plt.show()

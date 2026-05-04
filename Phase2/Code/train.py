@@ -2,7 +2,7 @@ import torch
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 import argparse
-from dataloader import DeepVIODataset
+from dataloader import DeepVIODataset, DeepVIORandomDataset
 from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms as transforms
 import numpy as np
@@ -54,10 +54,13 @@ def train(args):
     dataset = DeepVIODataset(root_dir=args.traj_path_train, transform=data_transforms)
     val_dataset = DeepVIODataset(root_dir=args.traj_path_val, transform=data_transforms)
 
+    traindataset = DeepVIORandomDataset(root_dir="Phase2/Data/TrainTrajectories", dataset_type='train')
+    valdataset =  DeepVIORandomDataset(root_dir="Phase2/Data/TrainTrajectories", dataset_type='val')
+
     # Initialize the DataLoader
     # batch_first=True is standard for your VINet LSTM training 
-    dataloader = DataLoader(dataset, batch_size=args.traj_set, shuffle=True, num_workers=2, drop_last=False)
-    val_dataloader = DataLoader(val_dataset, batch_size=args.traj_set, shuffle=True, num_workers=2, drop_last=False)
+    dataloader = DataLoader(traindataset, batch_size=args.traj_set, shuffle=True, drop_last=False)
+    val_dataloader = DataLoader(valdataset, batch_size=args.traj_set, shuffle=True, drop_last=False)
 
     if not os.path.exists(args.checkpoint_path):
         os.makedirs(args.checkpoint_path)
@@ -91,14 +94,14 @@ def train(args):
         epoch_twist_loss_train = 0
         epoch_global_loss_train = 0
         model.train()
-        for traj_set_i, (video_paths, imu, gt) in enumerate(dataloader):
+        for traj_set_i, (video_paths, imu, gt, start_t) in enumerate(dataloader):
             
             # images shape: [Batch, Seq_Len, C, H, W]
             # imu shape: [Batch, Seq_Len*10, 6]
             # gt shape: [Batch, Seq_Len, 7]
 
             decoders = [VideoDecoder(path) for path in video_paths]
-            sequence_length_train = decoders[0].metadata.num_frames
+            sequence_length_train = gt.shape[1]
 
             imu = imu.to(device)
             gt = gt.to(device)
@@ -119,18 +122,18 @@ def train(args):
             hidden_state = None
 
             if epoch_i+1 == args.epochs and args.display:
-                output_poses = np.zeros((len(dataloader), decoders[0].metadata.num_frames,8))
-                gt_poses = np.zeros((len(dataloader), decoders[0].metadata.num_frames,8))
+                output_poses = np.zeros((len(dataloader), sequence_length_train,8))
+                gt_poses = np.zeros((len(dataloader), sequence_length_train,8))
 
                 output_poses[:,0,1:] = traj_pos[:,0,[0,1,2,4,5,6,3]].detach().cpu().numpy() # switch real component to end
                 gt_poses[:,0,1:] = traj_pos[:,0,[0,1,2,4,5,6,3]].detach().cpu().numpy()
                 
-                times = np.linspace(0, decoders[0].metadata.num_frames/100, decoders[0].metadata.num_frames, endpoint=False)
+                times = np.linspace(0, sequence_length_train/100, sequence_length_train, endpoint=False)
                 output_poses[:, :,0] = times
                 gt_poses[:, :,0] = times
 
             for j in tqdm(range(sequence_length_train - 1), desc="Sequence_Train"):
-                curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
+                curr_img_pairs = torch.stack([data_transforms(decoders[d][start_t[d]+j:start_t[d]+j+2]) for d in range(len(decoders))])
                 curr_imu_data = imu[:, j*10:(j+1)*10]
                 gt_data = relative_start(gt[:, j:j+2], start_pos) #GT_TEST
                 # gt_data = gt[:, j:j+2] 
@@ -151,7 +154,7 @@ def train(args):
                 window_global_loss += global_loss
 
                 if (j+1) % args.window_size == 0:
-                    (window_twist_loss/args.window_size).backward()
+                    (window_total_loss/args.window_size).backward()
                     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                     optimizer.step()
                     optimizer.zero_grad()
@@ -194,14 +197,14 @@ def train(args):
 
         with torch.no_grad():
             model.eval()
-            for traj_set_i, (video_paths, imu, gt) in enumerate(val_dataloader):
+            for traj_set_i, (video_paths, imu, gt, start_t) in enumerate(val_dataloader):
                 
                 # images shape: [Batch, Seq_Len, C, H, W]
                 # imu shape: [Batch, Seq_Len*10, 6]
                 # gt shape: [Batch, Seq_Len, 7]
 
                 decoders = [VideoDecoder(path) for path in video_paths]
-                sequence_length_val = decoders[0].metadata.num_frames
+                sequence_length_val = gt.shape[1]
 
                 imu = imu.to(device)
                 gt = gt.to(device)
@@ -217,7 +220,7 @@ def train(args):
 
                 hidden_state = None
                 for j in tqdm(range(sequence_length_val - 1), desc="Sequence_Val"):
-                    curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
+                    curr_img_pairs = torch.stack([data_transforms(decoders[d][start_t[d]+j:start_t[d]+j+2]) for d in range(len(decoders))])
                     curr_imu_data = imu[:, j*10:(j+1)*10]
                     gt_data = relative_start(gt[:, j:j+2], start_pos) #GT_TEST
                     # gt_data = gt[:, j:j+2] 
@@ -293,7 +296,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', type=int, default=2, 
         help='0: VO, 1: IO, 2: VIO.')
-    parser.add_argument('--traj_set', type=int, default=3)
+    parser.add_argument('--traj_set', type=int, default=4)
     parser.add_argument('--epochs', type=int, default=50)
     parser.add_argument('--window_size', type=int, default=10)
     parser.add_argument('--l_rate', type=float, default=1e-4)
