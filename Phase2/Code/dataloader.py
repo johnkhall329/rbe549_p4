@@ -39,5 +39,6 @@ class DeepVIODataset(Dataset):
         imu_tensor = torch.tensor(imu_data, dtype=torch.float32) # [Seq_Len*10, 6]
 
         gt_tensor = torch.tensor(gt_data, dtype=torch.float32) # [Seq_Len, 7]
+        gt_tensor[:,:,:3] *= 1000
 
         return video_path, imu_tensor, gt_tensor

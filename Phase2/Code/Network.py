@@ -71,7 +71,7 @@ class DeepVIO(nn.Module):
         super(DeepVIO, self).__init__()
         
         self.linear1 = nn.Linear(1024, 128)
-        self.linear2 = nn.Linear(128, 6)
+        self.linear2 = nn.Linear(128, 7)
 
         if model_type == 0:
             self.VO = DeepVO()
@@ -108,6 +108,7 @@ class DeepVIO(nn.Module):
         # imu (Batch, 10, 6)
         # xyzQ (1,1,7)
 
+        # FIRST OPTION IS NORMAL MODEL, USES VO AND IO
         if self.VO is not None and self.IO is not None:
             c_out = self.VO(image)
             imu_out = self.IO(imu)
