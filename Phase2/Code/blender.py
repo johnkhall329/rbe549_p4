@@ -102,7 +102,7 @@ def render_trajectory(storage_efficient=True):
     video_output = os.path.join(output_dir, traj_folder, "trajectory_video.mp4")
     
     ffmpeg_cmd = [
-        'ffmpeg', '-y', '-framerate', '100', 
+        'ffmpeg', '-y', '-framerate', '10', 
         '-i', os.path.join(temp_frame_dir, 'frame_%04d.png'),
         '-c:v', 'libx264', '-pix_fmt', 'yuv420p', video_output
     ]

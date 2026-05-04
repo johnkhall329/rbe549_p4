@@ -14,7 +14,7 @@ def main():
     parser.add_argument("--base_blender_scene", default="Phase2/Blender/test_scene.blend")
     parser.add_argument("--output_dir", default="Phase2/Data/TrajectoriesCircles")
     parser.add_argument("--headless", action="store_true", default=True)
-    parser.add_argument("--num_samples", default=10)
+    parser.add_argument("--num_samples", default=6)
     parser.add_argument("--texture_dir", default="Phase2/Data/Redlands - Packing House District/Images")
     args = parser.parse_args()
 
@@ -34,7 +34,7 @@ def main():
         # 1. Generate Trajectory and IMU Data
         # TRAJECTORY TYPE: CHOOSE FROM "line", "circle_changing_height", "square", "figure8", "circle"
         # MORE COMPLEX TRAJECTORIES BENEFIT FROM LONGER DURATIONS
-        trajectory, imu_data, gt_data = generator.generate_random_trajectory(trajectory_type="circle", duration=10, frequency=1000)
+        trajectory, imu_data, gt_data = generator.generate_random_trajectory(trajectory_type="line", duration=5, frequency=100)
 
         # 2. Save to Pickle and Numpy [cite: 4]
         with open(args.output_dir + f'/{i}_traj/imu_data.npy', 'wb') as f:

@@ -64,7 +64,7 @@ def trajectory_geodesic_loss(
     target_delta_pose, 
     gt_absolute_pose, 
     global_weight, 
-    rot_weight=1.0
+    rot_weight=5.0
 ):
     """
     Args:
@@ -188,8 +188,8 @@ def train(args):
     writer = SummaryWriter(args.log_path+args.run_name)
 
     optimizer = torch.optim.Adam(model.parameters(), args.l_rate)
-    global_weight_init = 0.001
-    global_weight_final = 0.025
+    global_weight_init = 0.00005
+    global_weight_final = 0.001
     init_x = -np.log(global_weight_init)
     final_x = -np.log(global_weight_final)
 
@@ -204,6 +204,7 @@ def train(args):
         print(f"Epoch: {epoch_i + 1}")
 
         # TRAINING
+        track_trajectory = True if epoch_i < 10 else False
         epoch_total_loss_train = 0
         epoch_twist_loss_train = 0
         epoch_global_loss_train = 0
@@ -290,7 +291,9 @@ def train(args):
                     traj_pos = new_pose.detach().unsqueeze(1)
                 else:
                     traj_pos = new_pose.unsqueeze(1)
-                # traj_pos = gt_data[:, [1], :] # GT TEST
+
+                if track_trajectory:
+                    traj_pos = gt_data[:, [1], :] # GT TEST
 
             writer.add_scalar("Total_trajectory_loss", total_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
             writer.add_scalar("F2F_trajectory_loss", total_twist_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
@@ -418,17 +421,17 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', type=int, default=2, 
         help='0: VO, 1: IO, 2: VIO.')
-    parser.add_argument('--traj_set', type=int, default=8)
+    parser.add_argument('--traj_set', type=int, default=2)
     parser.add_argument('--epochs', type=int, default=50)
-    parser.add_argument('--window_size', type=int, default=10)
+    parser.add_argument('--window_size', type=int, default=5)
     parser.add_argument('--l_rate', type=float, default=1e-3)
     parser.add_argument('--log_path',default="./Phase2/Logs/",help="logs path")
     parser.add_argument('--run_name', default="morequatagain",help="folder to store images")
     parser.add_argument('--checkpoint_path',default="./Phase2/Checkpoints/",help="checkpoints path")
     parser.add_argument('--save_ckpt_epoch',default=5,help="num of iteration to save checkpoint")
     parser.add_argument('--display', type=bool, default=False,help="Display final trajectories")
-    parser.add_argument('--traj_path_train',default="Phase2/Data/Trajectories")
-    parser.add_argument('--traj_path_val',default="Phase2/Data/TrajectoriesVal")
+    parser.add_argument('--traj_path_train',default="Phase2/Data/small_trajs")
+    parser.add_argument('--traj_path_val',default="Phase2/Data/small_trajs_val")
     args = parser.parse_args()
 
     train(args)

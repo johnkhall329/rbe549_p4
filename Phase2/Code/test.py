@@ -20,23 +20,9 @@ except:
 from Network import *
 from transform_utils import process_output, get_twist, relative_start
 from traj_plot import plot_traj
+from train import add_poses, find_delta_poses, trajectory_geodesic_loss, loss
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-def loss(output_twist, output_pose, gt_twist, gt_pose, global_weight, rot_weight=1.0, quat_weight=2.5 ):
-    v_loss = F.l1_loss(output_twist[:,:3], gt_twist[:,:3])
-    omega_loss = F.l1_loss(output_twist[:,3:], gt_twist[:,3:])
-    twist_loss = v_loss + rot_weight*omega_loss
-    print(f"twist_loss: {twist_loss} gt twist norm: {gt_twist.norm()} out twist norm: {output_twist.norm()}")
-
-    pos_loss = F.mse_loss(output_pose[:,0,:3], gt_pose[:,0,:3])
-    quat_loss = torch.mean(quat_weight*(1 - torch.linalg.vecdot(output_pose[:,0, 3:], gt_pose[:,0,3:])))
-    global_loss = pos_loss+quat_loss
-
-    total_loss = (1-global_weight)*twist_loss + global_weight*global_loss
-
-    return total_loss, twist_loss, global_loss
-
 
 def test(args):    
     # Initialize Data
@@ -89,7 +75,8 @@ def test(args):
         # print(f"Batch {i} - Images: {data_transforms(decoders[0][0]).shape}, IMU: {imu.shape}, GT: {gt.shape}")
 
         start_pos = gt[:,[0]]
-        traj_pos = relative_start(start_pos,start_pos)
+        # traj_pos = relative_start(start_pos,start_pos)
+        traj_pos = start_pos # GT_TEST
 
         total_loss = 0
         total_twist_loss = 0
@@ -108,22 +95,29 @@ def test(args):
         hidden_state = None
         for j in tqdm(range(decoders[0].metadata.num_frames - 1), desc="Sequence"):
             curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
-            curr_imu_data = imu[:, j*10:(j+1)*10]
-            gt_data = relative_start(gt[:, j:j+2], start_pos)
+            curr_imu_data = imu[:, j*10:(j+1)*10]                    
+            # gt_data = relative_start(gt[:, j:j+2], start_pos) #GT_TEST
+            gt_data = gt[:, j:j+2] 
             curr_img_pairs = curr_img_pairs.to(device)
 
             with torch.no_grad():
-                out_twist, hidden_state = model(curr_img_pairs, curr_imu_data, traj_pos, hidden_state)
-            # convert se3 to SE3 for loss and loop input ...
-            new_pose = process_output(out_twist, traj_pos)
-            gt_twist = get_twist(gt_data)
-            traj_loss, twist_loss, global_loss  = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :], 0.5)
+                delta_pose, hidden_state = model(curr_img_pairs, curr_imu_data, traj_pos, hidden_state) # now returns a 7 vector, to be interpreted as pos, quat
+            new_pose = add_poses(delta_pose, traj_pos)
+            target_delta_pos = find_delta_poses(gt_data)
+            traj_loss, twist_loss, global_loss = trajectory_geodesic_loss(delta_pose, new_pose, target_delta_pos, gt_data[:,1], 0.01)
+                    # convert se3 to SE3 for loss and loop input ...
+            # with torch.no_grad():
+            #     out_twist, hidden_state = model(curr_img_pairs, curr_imu_data, traj_pos, hidden_state)
+            # # convert se3 to SE3 for loss and loop input ...
+            # new_pose = process_output(out_twist, traj_pos)
+            # gt_twist = get_twist(gt_data)
+            # traj_loss, twist_loss, global_loss  = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :], 0.5)
 
             total_loss += traj_loss
             total_twist_loss += twist_loss
             total_global_loss += global_loss
 
-            traj_pos = new_pose.detach()
+            traj_pos = new_pose.detach().unsqueeze(1)
 
             np_pose = traj_pos.cpu().numpy()
             output_poses[j+1,1:] = np_pose[0,0,[0,1,2,4,5,6,3]] # switch real component to end
@@ -190,7 +184,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_path',default="./Phase2/Output/",help="logs path")
     parser.add_argument('--run_name', default="test",help="folder to store images")
     parser.add_argument('--checkpoint_path',default="./Phase2/Checkpoints/",help="checkpoints path")
-    parser.add_argument('--model_name',default="morequatFinal.ckpt",help="checkpoint model name")
+    parser.add_argument('--model_name',default="new_loss_test315.ckpt",help="checkpoint model name")
     args = parser.parse_args()
 
     test(args)

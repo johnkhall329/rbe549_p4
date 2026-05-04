@@ -105,7 +105,7 @@ class UAVTrajectoryGenerator:
 
         # Ground Truth data (Position + Quaternion)
         gt_data = np.zeros((datapoints//IMAGE_CAPTURE_MULTIPLIER, 7))
-        gt_data[:, :3] = all_pos_vec
+        gt_data[:, :3] = all_pos_vec*100
         gt_data[:, 3:] = quat_pos_vec
 
         return ret_list, imu_data, gt_data
@@ -337,8 +337,8 @@ class UAVTrajectoryGenerator:
     def generate_start_end_points(self, min_dist=1.25, max_dist = 5):
         # Define your workspace bounds
         # x: 0-10, y: 0-10, z: 1-10
-        low = np.array([-4, -4, 3])
-        high = np.array([4, 4, 8])
+        low = np.array([-5, -5, 3])
+        high = np.array([5, 5, 8])
         yaw = np.random.uniform(0, 2*np.pi)
         
         while True:
