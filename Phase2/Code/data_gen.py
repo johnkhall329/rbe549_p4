@@ -12,9 +12,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--blender_path", default="/Downloads/blender-5.1.0-linux-x64/blender")
     parser.add_argument("--base_blender_scene", default="Phase2/Blender/test_scene.blend")
-    parser.add_argument("--output_dir", default="Phase2/Data/TrajectoriesCircles")
+    parser.add_argument("--output_dir", default="Phase2/Data/small_trajs")
     parser.add_argument("--headless", action="store_true", default=True)
-    parser.add_argument("--num_samples", default=6)
+    parser.add_argument("--num_samples", default=100)
     parser.add_argument("--texture_dir", default="Phase2/Data/Redlands - Packing House District/Images")
     args = parser.parse_args()
 

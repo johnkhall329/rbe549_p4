@@ -204,7 +204,7 @@ def train(args):
         print(f"Epoch: {epoch_i + 1}")
 
         # TRAINING
-        track_trajectory = True if epoch_i < 10 else False
+        track_trajectory = True if epoch_i < 60 else False
         epoch_total_loss_train = 0
         epoch_twist_loss_train = 0
         epoch_global_loss_train = 0
@@ -421,8 +421,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', type=int, default=2, 
         help='0: VO, 1: IO, 2: VIO.')
-    parser.add_argument('--traj_set', type=int, default=2)
-    parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument('--traj_set', type=int, default=10)
+    parser.add_argument('--epochs', type=int, default=150)
     parser.add_argument('--window_size', type=int, default=5)
     parser.add_argument('--l_rate', type=float, default=1e-3)
     parser.add_argument('--log_path',default="./Phase2/Logs/",help="logs path")
