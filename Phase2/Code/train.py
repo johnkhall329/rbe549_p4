@@ -418,7 +418,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', type=int, default=2, 
         help='0: VO, 1: IO, 2: VIO.')
-    parser.add_argument('--traj_set', type=int, default=1)
+    parser.add_argument('--traj_set', type=int, default=8)
     parser.add_argument('--epochs', type=int, default=50)
     parser.add_argument('--window_size', type=int, default=10)
     parser.add_argument('--l_rate', type=float, default=1e-3)
