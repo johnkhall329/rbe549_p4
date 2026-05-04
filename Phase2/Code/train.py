@@ -272,7 +272,7 @@ def train(args):
                 window_global_loss += global_loss
 
                 if (j+1) % args.window_size == 0:
-                    (window_twist_loss/args.window_size).backward()
+                    (window_total_loss/args.window_size).backward()
                     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                     optimizer.step()
                     optimizer.zero_grad()
@@ -287,10 +287,10 @@ def train(args):
                     
                     hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
 
-                #     traj_pos = new_pose.detach()
-                # else:
-                #     traj_pos = new_pose
-                traj_pos = gt_data[:, [1], :] # GT TEST
+                    traj_pos = new_pose.detach()
+                else:
+                    traj_pos = new_pose
+                # traj_pos = gt_data[:, [1], :] # GT TEST
 
             writer.add_scalar("Total_trajectory_loss", total_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
             writer.add_scalar("F2F_trajectory_loss", total_twist_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
@@ -358,8 +358,8 @@ def train(args):
                     total_twist_loss += twist_loss.item()
                     total_global_loss += global_loss.item()
 
-                    # traj_pos = new_pose.detach() #GT_TEST
-                    traj_pos = gt_data[:, [1], :]
+                    traj_pos = new_pose.detach() #GT_TEST
+                    # traj_pos = gt_data[:, [1], :]
                     hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
 
                 epoch_total_loss_val += total_loss/sequence_length_val
