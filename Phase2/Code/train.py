@@ -287,9 +287,9 @@ def train(args):
                     
                     hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
 
-                    traj_pos = new_pose.detach()
+                    traj_pos = new_pose.detach().unsqueeze(1)
                 else:
-                    traj_pos = new_pose
+                    traj_pos = new_pose.unsqueeze(1)
                 # traj_pos = gt_data[:, [1], :] # GT TEST
 
             writer.add_scalar("Total_trajectory_loss", total_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
@@ -358,7 +358,7 @@ def train(args):
                     total_twist_loss += twist_loss.item()
                     total_global_loss += global_loss.item()
 
-                    traj_pos = new_pose.detach() #GT_TEST
+                    traj_pos = new_pose.detach().unsqueeze(1) #GT_TEST
                     # traj_pos = gt_data[:, [1], :]
                     hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
 
