@@ -204,7 +204,8 @@ def train(args):
         print(f"Epoch: {epoch_i + 1}")
 
         # TRAINING
-        track_trajectory = True if epoch_i < 5 else False
+        track_trajectory1 = True if epoch_i < 3 else False
+        track_trajectory2 = True if epoch_i < 8 else False
         epoch_total_loss_train = 0
         epoch_twist_loss_train = 0
         epoch_global_loss_train = 0
@@ -292,7 +293,7 @@ def train(args):
                 else:
                     traj_pos = new_pose.unsqueeze(1)
 
-                if track_trajectory:
+                if track_trajectory1 or (track_trajectory2 and (j%100 == 0)):
                     traj_pos = gt_data[:, [1], :] # GT TEST
 
             writer.add_scalar("Total_trajectory_loss", total_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
