@@ -34,7 +34,7 @@ def main():
         # 1. Generate Trajectory and IMU Data
         # TRAJECTORY TYPE: CHOOSE FROM "line", "circle_changing_height", "square", "figure8", "circle"
         # MORE COMPLEX TRAJECTORIES BENEFIT FROM LONGER DURATIONS
-        trajectory, imu_data, gt_data = generator.generate_random_trajectory(trajectory_type="line", duration=5, frequency=100)
+        trajectory, imu_data, gt_data = generator.generate_random_trajectory(trajectory_type="line", duration=5, frequency=1000)
 
         # 2. Save to Pickle and Numpy [cite: 4]
         with open(args.output_dir + f'/{i}_traj/imu_data.npy', 'wb') as f:

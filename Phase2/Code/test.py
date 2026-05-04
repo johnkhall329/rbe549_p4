@@ -184,7 +184,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_path',default="./Phase2/Output/",help="logs path")
     parser.add_argument('--run_name', default="test",help="folder to store images")
     parser.add_argument('--checkpoint_path',default="./Phase2/Checkpoints/",help="checkpoints path")
-    parser.add_argument('--model_name',default="new_loss_test315.ckpt",help="checkpoint model name")
+    parser.add_argument('--model_name',default="global_new_loss310.ckpt",help="checkpoint model name")
     args = parser.parse_args()
 
     test(args)
