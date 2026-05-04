@@ -27,6 +27,7 @@ def loss(output_twist, output_pose, gt_twist, gt_pose, global_weight, rot_weight
     v_loss = F.l1_loss(output_twist[:,:3], gt_twist[:,:3])
     omega_loss = F.l1_loss(output_twist[:,3:], gt_twist[:,3:])
     twist_loss = v_loss + rot_weight*omega_loss
+    print(f"twist_loss: {twist_loss} gt twist norm: {gt_twist.norm()} out twist norm: {output_twist.norm()}")
 
     pos_loss = F.mse_loss(output_pose[:,0,:3], gt_pose[:,0,:3])
     quat_loss = torch.mean(quat_weight*(1 - torch.linalg.vecdot(output_pose[:,0, 3:], gt_pose[:,0,3:])))
@@ -127,6 +128,7 @@ def test(args):
             np_pose = traj_pos.cpu().numpy()
             output_poses[j+1,1:] = np_pose[0,0,[0,1,2,4,5,6,3]] # switch real component to end
             gt_poses[j+1,1:] = gt_data[0,1,[0,1,2,4,5,6,3]].detach().cpu().numpy()
+        
 
         print(f"Total Loss: {total_loss/decoders[0].metadata.num_frames}")
         print(f"Twist Loss: {total_twist_loss/decoders[0].metadata.num_frames}")

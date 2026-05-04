@@ -18,11 +18,12 @@ from Network import *
 from transform_utils import process_output, get_twist, relative_start, standardize_quaternion
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"USING DEVICE: {device}")
 
 def loss(output_twist, output_pose, gt_twist, gt_pose, global_weight, rot_weight=1.0, quat_weight=10.0):
     v_loss = F.l1_loss(output_twist[:,:3], gt_twist[:,:3])
     omega_loss = F.l1_loss(output_twist[:,3:], gt_twist[:,3:])
-    twist_loss = v_loss + rot_weight*omega_loss
+    twist_loss = v_loss + (rot_weight*omega_loss)
 
     pos_loss = F.mse_loss(output_pose[:,0,:3], gt_pose[:,0,:3])
     
@@ -31,7 +32,7 @@ def loss(output_twist, output_pose, gt_twist, gt_pose, global_weight, rot_weight
     quat_loss = torch.mean(quat_weight*(1 - torch.linalg.vecdot(out_q, gt_q)))
     global_loss = pos_loss+quat_loss
 
-    total_loss = (1-global_weight)*twist_loss + global_weight*global_loss
+    total_loss = ((1-global_weight)*twist_loss) + (global_weight*global_loss)
 
     return total_loss, twist_loss, global_loss
 
@@ -48,14 +49,15 @@ def train(args):
         transforms.ConvertImageDtype(torch.float32),
         transforms.Normalize(mean=0.5, std=0.5),
         transforms.Resize((520, 960)),
-        # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
-    dataset = DeepVIODataset(root_dir="Phase2/Data/Trajectories", transform=data_transforms)
+    dataset = DeepVIODataset(root_dir=args.traj_path_train, transform=data_transforms)
+    val_dataset = DeepVIODataset(root_dir=args.traj_path_val, transform=data_transforms)
 
     # Initialize the DataLoader
     # batch_first=True is standard for your VINet LSTM training 
-    dataloader = DataLoader(dataset, batch_size=args.traj_set, shuffle=True, num_workers=2)
+    dataloader = DataLoader(dataset, batch_size=args.traj_set, shuffle=True, num_workers=2, drop_last=False)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.traj_set, shuffle=True, num_workers=2, drop_last=False)
 
     if not os.path.exists(args.checkpoint_path):
         os.makedirs(args.checkpoint_path)
@@ -78,14 +80,17 @@ def train(args):
     scale_x = (final_x - init_x)/(epochs - 1)
 
     for epoch_i in tqdm(range(epochs), desc="Epochs"):
-        model.train()
 
         # find the global and f2f weights for this epoch
         global_weight = np.exp(-(init_x + (scale_x*epoch_i)))
         # print(global_weight)
 
-        print(f"Epoch: {epoch_i}")
+        print(f"Epoch: {epoch_i + 1}")
 
+        epoch_total_loss_train = 0
+        epoch_twist_loss_train = 0
+        epoch_global_loss_train = 0
+        model.train()
         for traj_set_i, (video_paths, imu, gt) in enumerate(dataloader):
             
             # images shape: [Batch, Seq_Len, C, H, W]
@@ -93,13 +98,14 @@ def train(args):
             # gt shape: [Batch, Seq_Len, 7]
 
             decoders = [VideoDecoder(path) for path in video_paths]
+            sequence_length_train = decoders[0].metadata.num_frames
 
             imu = imu.to(device)
             gt = gt.to(device)
             # print(f"Batch {i} - Images: {data_transforms(decoders[0][0]).shape}, IMU: {imu.shape}, GT: {gt.shape}")
 
             start_pos = gt[:,[0]]
-            traj_pos = relative_start(start_pos,start_pos)
+            traj_pos = start_pos # relative_start(start_pos,start_pos) GT_TEST
 
             total_loss = 0
             total_twist_loss = 0
@@ -111,7 +117,7 @@ def train(args):
 
             hidden_state = None
 
-            if epoch_i+1 == args.epochs:
+            if epoch_i+1 == args.epochs and args.display:
                 output_poses = np.zeros((len(dataloader), decoders[0].metadata.num_frames,8))
                 gt_poses = np.zeros((len(dataloader), decoders[0].metadata.num_frames,8))
 
@@ -121,19 +127,21 @@ def train(args):
                 times = np.linspace(0, decoders[0].metadata.num_frames/100, decoders[0].metadata.num_frames, endpoint=False)
                 output_poses[:, :,0] = times
                 gt_poses[:, :,0] = times
-            for j in tqdm(range(decoders[0].metadata.num_frames - 1), desc="Sequence"):
+
+            for j in tqdm(range(sequence_length_train - 1), desc="Sequence_Train"):
                 curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                 curr_imu_data = imu[:, j*10:(j+1)*10]
-                gt_data = relative_start(gt[:, j:j+2], start_pos)
+                # gt_data = relative_start(gt[:, j:j+2], start_pos) GT_TEST
+                gt_data = gt[:, j:j+2] 
                 curr_img_pairs = curr_img_pairs.to(device)
 
                 out_twist, hidden_state = model(curr_img_pairs, curr_imu_data, traj_pos, hidden_state)
                 # convert se3 to SE3 for loss and loop input ...
-                new_pose = process_output(out_twist, traj_pos)
-                gt_twist = get_twist(gt_data)
+                new_pose = process_output(out_twist/1000, traj_pos)
+                gt_twist = get_twist(gt_data)*1000
                 traj_loss, twist_loss, global_loss  = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :], global_weight)
 
-                if epoch_i+1 == args.epochs:
+                if epoch_i+1 == args.epochs and args.dipslay:
                     output_poses[traj_set_i*args.traj_set:(traj_set_i+1)*args.traj_set,j+1,1:] = new_pose[:,0,[0,1,2,4,5,6,3]].detach().cpu().numpy() # switch real component to end
                     gt_poses[traj_set_i*args.traj_set:(traj_set_i+1)*args.traj_set,j+1,1:] = gt_data[:,1,[0,1,2,4,5,6,3]].detach().cpu().numpy()
 
@@ -142,27 +150,105 @@ def train(args):
                 window_global_loss += global_loss
 
                 if (j+1) % args.window_size == 0:
-                    (window_total_loss/args.window_size).backward()
+                    (window_twist_loss/args.window_size).backward()
                     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                     optimizer.step()
                     optimizer.zero_grad()
 
-                    total_loss += window_total_loss.detach()
-                    total_twist_loss += window_twist_loss.detach()
-                    total_global_loss += window_global_loss.detach()
+                    total_loss += window_total_loss.item()
+                    total_twist_loss += window_twist_loss.item()
+                    total_global_loss += window_global_loss.item()
 
                     window_total_loss = 0
                     window_twist_loss = 0
                     window_global_loss = 0
+                    
                     hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
+
                     traj_pos = new_pose.detach()
                 else:
                     traj_pos = new_pose
+                # traj_pos = gt_data[:, [1], :]
 
-            writer.add_scalar("Total_loss", total_loss/decoders[0].metadata.num_frames, traj_set_i+(epoch_i*len(dataloader)))
-            writer.add_scalar("Twist_loss", total_twist_loss/decoders[0].metadata.num_frames, traj_set_i+(epoch_i*len(dataloader)))
-            writer.add_scalar("Pose_loss", total_global_loss/decoders[0].metadata.num_frames, traj_set_i+(epoch_i*len(dataloader)))
+            writer.add_scalar("Total_trajectory_loss", total_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
+            writer.add_scalar("Twist_trajectory_loss", total_twist_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
+            writer.add_scalar("Pose_trajectory_loss", total_global_loss/sequence_length_train, traj_set_i+(epoch_i*len(dataloader)))
+            epoch_total_loss_train += total_loss/sequence_length_train
+            epoch_global_loss_train += total_global_loss/sequence_length_train
+            epoch_twist_loss_train += total_twist_loss/sequence_length_train
+            
         
+        writer.add_scalar("Total_epoch_train_loss", epoch_total_loss_train/len(dataloader), (epoch_i + 1))
+        writer.add_scalar("Twist_epoch_train_loss", epoch_twist_loss_train/len(dataloader), (epoch_i + 1))
+        writer.add_scalar("Pose_epoch_train_loss", epoch_global_loss_train/len(dataloader), (epoch_i + 1))
+        print(f"Total Train Loss: {epoch_total_loss_train/len(dataloader)}")
+        print(f"Twist Train Loss: {epoch_twist_loss_train/len(dataloader)}")
+        print(f"Pose Train Loss: {epoch_global_loss_train/len(dataloader)}")
+
+
+        # VALIDATION
+        epoch_total_loss_val = 0
+        epoch_twist_loss_val = 0
+        epoch_global_loss_val = 0
+
+        with torch.no_grad():
+            model.eval()
+            for traj_set_i, (video_paths, imu, gt) in enumerate(val_dataloader):
+                
+                # images shape: [Batch, Seq_Len, C, H, W]
+                # imu shape: [Batch, Seq_Len*10, 6]
+                # gt shape: [Batch, Seq_Len, 7]
+
+                decoders = [VideoDecoder(path) for path in video_paths]
+                sequence_length_val = decoders[0].metadata.num_frames
+
+                imu = imu.to(device)
+                gt = gt.to(device)
+                # print(f"Batch {i} - Images: {data_transforms(decoders[0][0]).shape}, IMU: {imu.shape}, GT: {gt.shape}")
+
+                start_pos = gt[:,[0]]
+                # traj_pos = relative_start(start_pos,start_pos)
+                traj_pos = start_pos # relative_start(start_pos,start_pos) GT_TEST
+
+                total_loss = 0
+                total_twist_loss = 0
+                total_global_loss = 0
+
+                hidden_state = None
+                for j in tqdm(range(sequence_length_val - 1), desc="Sequence_Val"):
+                    curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
+                    curr_imu_data = imu[:, j*10:(j+1)*10]
+                    # gt_data = relative_start(gt[:, j:j+2], start_pos) GT_TEST
+                    gt_data = gt[:, j:j+2] 
+                    curr_img_pairs = curr_img_pairs.to(device)
+
+
+                    out_twist, hidden_state = model(curr_img_pairs, curr_imu_data, traj_pos, hidden_state)
+                    # convert se3 to SE3 for loss and loop input ...
+                    new_pose = process_output(out_twist, traj_pos)
+                    gt_twist = get_twist(gt_data)
+                    traj_loss, twist_loss, global_loss = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :], global_weight)
+
+                    total_loss += traj_loss.item()
+                    total_twist_loss += twist_loss.item()
+                    total_global_loss += global_loss.item()
+
+                    # traj_pos = new_pose.detach() GT_TEST
+                    traj_pos = gt_data[:, [1], :]
+                    hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
+
+                epoch_total_loss_val += total_loss/sequence_length_val
+                epoch_global_loss_val += total_global_loss/sequence_length_val
+                epoch_twist_loss_val += total_twist_loss/sequence_length_val
+            
+
+            writer.add_scalar("Total_epoch_val_loss", epoch_total_loss_val/len(val_dataloader), (epoch_i + 1))
+            writer.add_scalar("Twist_epoch_val_loss", epoch_twist_loss_val/len(val_dataloader), (epoch_i + 1))
+            writer.add_scalar("Pose_epoch_val_loss", epoch_global_loss_val/len(val_dataloader), (epoch_i + 1))
+            print(f"Total Val Loss: {epoch_total_loss_val/len(val_dataloader)}")
+            print(f"Twist Val Loss: {epoch_twist_loss_val/len(val_dataloader)}")
+            print(f"Pose Val Loss: {epoch_global_loss_val/len(val_dataloader)}")
+                
 
         if epoch_i % args.save_ckpt_epoch == 0 and epoch_i > 0:
             SaveName = (
@@ -215,6 +301,8 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_path',default="./Phase2/Checkpoints/",help="checkpoints path")
     parser.add_argument('--save_ckpt_epoch',default=5,help="num of iteration to save checkpoint")
     parser.add_argument('--display', type=bool, default=False,help="Display final trajectories")
+    parser.add_argument('--traj_path_train',default="Phase2/Data/Trajectories")
+    parser.add_argument('--traj_path_val',default="Phase2/Data/TrajectoriesVal")
     args = parser.parse_args()
 
     train(args)
