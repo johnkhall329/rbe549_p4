@@ -73,7 +73,7 @@ def train(args):
 
     optimizer = torch.optim.AdamW(model.parameters(), args.l_rate)
     global_weight_init = 0.001
-    global_weight_final = 0.01
+    global_weight_final = 0.025
     init_x = -np.log(global_weight_init)
     final_x = -np.log(global_weight_final)
 
@@ -105,7 +105,8 @@ def train(args):
             # print(f"Batch {i} - Images: {data_transforms(decoders[0][0]).shape}, IMU: {imu.shape}, GT: {gt.shape}")
 
             start_pos = gt[:,[0]]
-            traj_pos = start_pos # relative_start(start_pos,start_pos) GT_TEST
+            # traj_pos = start_pos 
+            traj_pos = relative_start(start_pos,start_pos) #GT_TEST
 
             total_loss = 0
             total_twist_loss = 0
@@ -131,14 +132,14 @@ def train(args):
             for j in tqdm(range(sequence_length_train - 1), desc="Sequence_Train"):
                 curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                 curr_imu_data = imu[:, j*10:(j+1)*10]
-                # gt_data = relative_start(gt[:, j:j+2], start_pos) GT_TEST
-                gt_data = gt[:, j:j+2] 
+                gt_data = relative_start(gt[:, j:j+2], start_pos) #GT_TEST
+                # gt_data = gt[:, j:j+2] 
                 curr_img_pairs = curr_img_pairs.to(device)
 
                 out_twist, hidden_state = model(curr_img_pairs, curr_imu_data, traj_pos, hidden_state)
                 # convert se3 to SE3 for loss and loop input ...
-                new_pose = process_output(out_twist/1000, traj_pos)
-                gt_twist = get_twist(gt_data)*1000
+                new_pose = process_output(out_twist, traj_pos)
+                gt_twist = get_twist(gt_data)
                 traj_loss, twist_loss, global_loss  = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :], global_weight)
 
                 if epoch_i+1 == args.epochs and args.dipslay:
@@ -207,8 +208,8 @@ def train(args):
                 # print(f"Batch {i} - Images: {data_transforms(decoders[0][0]).shape}, IMU: {imu.shape}, GT: {gt.shape}")
 
                 start_pos = gt[:,[0]]
-                # traj_pos = relative_start(start_pos,start_pos)
-                traj_pos = start_pos # relative_start(start_pos,start_pos) GT_TEST
+                traj_pos = relative_start(start_pos,start_pos)
+                # traj_pos = start_pos # relative_start(start_pos,start_pos) GT_TEST
 
                 total_loss = 0
                 total_twist_loss = 0
@@ -218,8 +219,8 @@ def train(args):
                 for j in tqdm(range(sequence_length_val - 1), desc="Sequence_Val"):
                     curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                     curr_imu_data = imu[:, j*10:(j+1)*10]
-                    # gt_data = relative_start(gt[:, j:j+2], start_pos) GT_TEST
-                    gt_data = gt[:, j:j+2] 
+                    gt_data = relative_start(gt[:, j:j+2], start_pos) #GT_TEST
+                    # gt_data = gt[:, j:j+2] 
                     curr_img_pairs = curr_img_pairs.to(device)
 
 
@@ -233,8 +234,8 @@ def train(args):
                     total_twist_loss += twist_loss.item()
                     total_global_loss += global_loss.item()
 
-                    # traj_pos = new_pose.detach() GT_TEST
-                    traj_pos = gt_data[:, [1], :]
+                    traj_pos = new_pose.detach() #GT_TEST
+                    # traj_pos = gt_data[:, [1], :]
                     hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
 
                 epoch_total_loss_val += total_loss/sequence_length_val
@@ -292,8 +293,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', type=int, default=2, 
         help='0: VO, 1: IO, 2: VIO.')
-    parser.add_argument('--traj_set', type=int, default=1)
-    parser.add_argument('--epochs', type=int, default=30)
+    parser.add_argument('--traj_set', type=int, default=3)
+    parser.add_argument('--epochs', type=int, default=50)
     parser.add_argument('--window_size', type=int, default=10)
     parser.add_argument('--l_rate', type=float, default=1e-4)
     parser.add_argument('--log_path',default="./Phase2/Logs/",help="logs path")
