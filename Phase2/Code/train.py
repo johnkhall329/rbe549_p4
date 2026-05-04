@@ -198,8 +198,9 @@ def train(args):
     )
     print("\n" + SaveName + " Model Saved...")
 
-    for k in range(gt_poses.shape[0]):
-        plot_traj(gt_poses[k], output_poses[k], times, "test plot")
+    if args.display:
+        for k in range(gt_poses.shape[0]):
+            plot_traj(gt_poses[k], output_poses[k], times, "test plot")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
