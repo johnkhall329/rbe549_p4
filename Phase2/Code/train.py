@@ -7,25 +7,28 @@ from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms as transforms
 import numpy as np
 
+from traj_plot import plot_traj
+
 try:
     from torchcodec.decoders import VideoDecoder
 except:
     from torchcodec.decoders import SimpleVideoDecoder as VideoDecoder
 
 from Network import *
-from transform_utils import process_output, get_twist, relative_start
+from transform_utils import process_output, get_twist, relative_start, standardize_quaternion
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-SEQUENCE_LENGTH = 30
 
-def loss(output_twist, output_pose, gt_twist, gt_pose, global_weight, rot_weight=1.0, quat_weight=2.5 ):
+def loss(output_twist, output_pose, gt_twist, gt_pose, global_weight, rot_weight=1.0, quat_weight=10.0):
     v_loss = F.l1_loss(output_twist[:,:3], gt_twist[:,:3])
     omega_loss = F.l1_loss(output_twist[:,3:], gt_twist[:,3:])
     twist_loss = v_loss + rot_weight*omega_loss
 
     pos_loss = F.mse_loss(output_pose[:,0,:3], gt_pose[:,0,:3])
     
-    quat_loss = torch.mean(quat_weight*(1 - torch.linalg.vecdot(output_pose[:,0, 3:], gt_pose[:,0,3:])))
+    out_q = standardize_quaternion(F.normalize(output_pose[:,0, 3:],dim=1))
+    gt_q = standardize_quaternion(F.normalize(gt_pose[:,0, 3:],dim=1))
+    quat_loss = torch.mean(quat_weight*(1 - torch.linalg.vecdot(out_q, gt_q)))
     global_loss = pos_loss+quat_loss
 
     total_loss = (1-global_weight)*twist_loss + global_weight*global_loss
@@ -107,6 +110,17 @@ def train(args):
             window_global_loss = 0
 
             hidden_state = None
+
+            if epoch_i+1 == args.epochs:
+                output_poses = np.zeros((len(dataloader), decoders[0].metadata.num_frames,8))
+                gt_poses = np.zeros((len(dataloader), decoders[0].metadata.num_frames,8))
+
+                output_poses[:,0,1:] = traj_pos[:,0,[0,1,2,4,5,6,3]].detach().cpu().numpy() # switch real component to end
+                gt_poses[:,0,1:] = traj_pos[:,0,[0,1,2,4,5,6,3]].detach().cpu().numpy()
+                
+                times = np.linspace(0, decoders[0].metadata.num_frames/100, decoders[0].metadata.num_frames, endpoint=False)
+                output_poses[:, :,0] = times
+                gt_poses[:, :,0] = times
             for j in tqdm(range(decoders[0].metadata.num_frames - 1), desc="Sequence"):
                 curr_img_pairs = torch.stack([data_transforms(decoders[d][j:j+2]) for d in range(len(decoders))])
                 curr_imu_data = imu[:, j*10:(j+1)*10]
@@ -118,6 +132,10 @@ def train(args):
                 new_pose = process_output(out_twist, traj_pos)
                 gt_twist = get_twist(gt_data)
                 traj_loss, twist_loss, global_loss  = loss(out_twist, new_pose, gt_twist, gt_data[:, [1], :], global_weight)
+
+                if epoch_i+1 == args.epochs:
+                    output_poses[traj_set_i*args.traj_set:(traj_set_i+1)*args.traj_set,j+1,1:] = new_pose[:,0,[0,1,2,4,5,6,3]].detach().cpu().numpy() # switch real component to end
+                    gt_poses[traj_set_i*args.traj_set:(traj_set_i+1)*args.traj_set,j+1,1:] = gt_data[:,1,[0,1,2,4,5,6,3]].detach().cpu().numpy()
 
                 window_total_loss += traj_loss
                 window_twist_loss += twist_loss
@@ -137,8 +155,9 @@ def train(args):
                     window_twist_loss = 0
                     window_global_loss = 0
                     hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
-
-                traj_pos = new_pose.detach()
+                    traj_pos = new_pose.detach()
+                else:
+                    traj_pos = new_pose
 
             writer.add_scalar("Total_loss", total_loss/decoders[0].metadata.num_frames, traj_set_i+(epoch_i*len(dataloader)))
             writer.add_scalar("Twist_loss", total_twist_loss/decoders[0].metadata.num_frames, traj_set_i+(epoch_i*len(dataloader)))
@@ -178,7 +197,9 @@ def train(args):
         SaveName, 
     )
     print("\n" + SaveName + " Model Saved...")
-                
+
+    for k in range(gt_poses.shape[0]):
+        plot_traj(gt_poses[k], output_poses[k], times, "test plot")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -189,9 +210,10 @@ if __name__ == '__main__':
     parser.add_argument('--window_size', type=int, default=10)
     parser.add_argument('--l_rate', type=float, default=1e-4)
     parser.add_argument('--log_path',default="./Phase2/Logs/",help="logs path")
-    parser.add_argument('--run_name', default="new_single",help="folder to store images")
+    parser.add_argument('--run_name', default="morequatagain",help="folder to store images")
     parser.add_argument('--checkpoint_path',default="./Phase2/Checkpoints/",help="checkpoints path")
     parser.add_argument('--save_ckpt_epoch',default=5,help="num of iteration to save checkpoint")
+    parser.add_argument('--display', type=bool, default=False,help="Display final trajectories")
     args = parser.parse_args()
 
     train(args)

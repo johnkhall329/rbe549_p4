@@ -14,13 +14,20 @@ class DeepIO(nn.Module):
 
         self.rnnIMU = nn.LSTM(
             input_size=6, 
-            hidden_size=6,
+            hidden_size=64,
             num_layers=2,
             batch_first=True)
         
+        self.imu_mlp = nn.Sequential(
+            nn.Linear(64, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32)
+        )
+
     def forward(self, imu):
-        imu_out, (imu_n, imu_c) = self.rnnIMU(imu)
-        imu_out = imu_out[:, -1, :]
+        lstm_out, (imu_n, imu_c) = self.rnnIMU(imu)
+        last_step = lstm_out[:, -1, :]
+        imu_out = self.imu_mlp(last_step)
         imu_out = imu_out.unsqueeze(1)
 
         return imu_out
@@ -35,13 +42,13 @@ class DeepVO(nn.Module):
             param.requires_grad = False
 
         self.feature_extractor = nn.Sequential(
-            nn.Conv2d(2, 32, kernel_size=7, stride=2, padding=3), # 480x260
+            nn.Conv2d(2, 32, kernel_size=7, stride=2, padding=3),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=5, stride=2, padding=2), # 240x130
+            nn.Conv2d(32, 64, kernel_size=5, stride=2, padding=2),
             nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1), # 120x65
+            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
             nn.ReLU(),
-            nn.AdaptiveAvgPool2d((4, 2)) # Forces the output to 4x2 regardless of input size
+            nn.AdaptiveAvgPool2d((4, 2))
         )
     
     def forward(self, image):
@@ -74,23 +81,26 @@ class DeepVIO(nn.Module):
                 hidden_size=1024,#64, 
                 num_layers=2,
                 batch_first=True)
-
+            self.layer_norm = nn.LayerNorm(1031)
         elif model_type == 1:
             self.VO = None
             self.IO = DeepIO()
             self.rnn = nn.LSTM(
-                input_size=13,#49152,#24576, 
-                hidden_size=1024,#64, 
+                input_size=39,#49152,#24576, 
+                hidden_size=128,#64, 
                 num_layers=2,
                 batch_first=True)
+            self.layer_norm = nn.LayerNorm(39)
+            self.linear1 = nn.Linear(128, 128)
         else:
             self.VO = DeepVO()
             self.IO = DeepIO()
             self.rnn = nn.LSTM(
-                input_size=1037,#49152,#24576, 
+                input_size=1063,#49152,#24576, 
                 hidden_size=1024,#64, 
                 num_layers=2,
                 batch_first=True)
+            self.layer_norm = nn.LayerNorm(1063)
         
 
     def forward(self, image, imu, xyzQ, hidden_state):
@@ -103,17 +113,20 @@ class DeepVIO(nn.Module):
             imu_out = self.IO(imu)
             cat_out = torch.cat((c_out, imu_out), 2)#1 1 49158
             cat_out = torch.cat((cat_out, xyzQ), 2)#1 1 49165
+            normalized = self.layer_norm(cat_out)
         elif self.VO is not None and self.IO is None:
             c_out = self.VO(image)
             cat_out = torch.cat((c_out, xyzQ), 2)
+            normalized = self.layer_norm(cat_out)
         else:
             imu_out = self.IO(imu)
             cat_out = torch.cat((imu_out, xyzQ), 2)
+            normalized = self.layer_norm(cat_out)
         
-        r_out, (h_n, h_c) = self.rnn(cat_out, hidden_state)
+        r_out, (h_n, h_c) = self.rnn(normalized, hidden_state)
         # self.hidden_state = (h_n, h_c)
         l_out1 = self.linear1(r_out[:,-1,:])
-        l_out2 = self.linear2(l_out1)
+        l_out2 = self.linear2(F.relu(l_out1))
 
         return l_out2, (h_n, h_c)
 
