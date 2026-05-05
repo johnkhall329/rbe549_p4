@@ -51,11 +51,11 @@ def train(args):
         transforms.Resize((520, 960)),
     ])
 
-    dataset = DeepVIODataset(root_dir=args.traj_path_train, transform=data_transforms)
-    val_dataset = DeepVIODataset(root_dir=args.traj_path_val, transform=data_transforms)
+    # dataset = DeepVIODataset(root_dir=args.traj_path_train, transform=data_transforms)
+    # val_dataset = DeepVIODataset(root_dir=args.traj_path_val, transform=data_transforms)
 
     traindataset = DeepVIORandomDataset(root_dir="Phase2/Data/TrainTrajectories", dataset_type='train')
-    valdataset =  DeepVIORandomDataset(root_dir="Phase2/Data/TrainTrajectories", dataset_type='val')
+    valdataset =  DeepVIORandomDataset(root_dir="Phase2/Data/ValTrajectories", dataset_type='val')
 
     # Initialize the DataLoader
     # batch_first=True is standard for your VINet LSTM training 
