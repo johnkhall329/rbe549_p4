@@ -2,7 +2,7 @@ import torch
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 import argparse
-from dataloader import DeepVIODataset
+from dataloader import DeepVIODataset, DeepVIORandomDataset
 from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms as transforms
 import numpy as np
@@ -50,11 +50,12 @@ def test(args):
         # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
-    dataset = DeepVIODataset(root_dir="Phase2/Data/Trajectories", transform=data_transforms)
+    # dataset = DeepVIORandomDataset(root_dir="Phase2/Data/TestTrajectories", dataset_type="test")
+    dataset = DeepVIODataset(root_dir="Phase2/Data/TestTrajectories/")
 
     # Initialize the DataLoader
     # batch_first=True is standard for your VINet LSTM training 
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=2)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
 
     if not os.path.exists(args.checkpoint_path):
         os.makedirs(args.checkpoint_path)
@@ -71,7 +72,7 @@ def test(args):
     
     model.eval()
 
-    for traj_set_i, (video_paths, imu, gt) in enumerate(dataloader):
+    for traj_set_i, (video_paths, imu, gt, start_t) in enumerate(dataloader):
         
         # images shape: [Batch, Seq_Len, C, H, W]
         # imu shape: [Batch, Seq_Len*10, 6]
@@ -79,7 +80,7 @@ def test(args):
         
         decoders = [VideoDecoder(path) for path in video_paths]
 
-        traj_name = video_paths[0].split('/')[-2]
+        traj_name = video_paths[0].split('/')[-3] +'_' + video_paths[0].split('/')[-2]
 
         output_dir = args.output_path+model_name+'/'+traj_name+'/'
         os.makedirs(output_dir, exist_ok=True)
@@ -184,13 +185,13 @@ def test(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_type', type=int, default=2, 
+    parser.add_argument('--model_type', type=int, default=1, 
         help='0: VO, 1: IO, 2: VIO.')
     parser.add_argument('--log_path',default="./Phase2/Logs/",help="logs path")
     parser.add_argument('--output_path',default="./Phase2/Output/",help="logs path")
     parser.add_argument('--run_name', default="test",help="folder to store images")
     parser.add_argument('--checkpoint_path',default="./Phase2/Checkpoints/",help="checkpoints path")
-    parser.add_argument('--model_name',default="morequatFinal.ckpt",help="checkpoint model name")
+    parser.add_argument('--model_name',default="batch_data_IOFinal.ckpt",help="checkpoint model name")
     args = parser.parse_args()
 
     test(args)

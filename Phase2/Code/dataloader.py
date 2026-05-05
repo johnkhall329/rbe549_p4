@@ -118,6 +118,8 @@ class DeepVIORandomDataset(Dataset):
 
         gt_tensor = torch.tensor(gt_data, dtype=torch.float32) # [Seq_Len, 7]
 
-        start_t = 0 if "TrajectoriesLines" in seq_type else np.random.randint(600) 
+        start_t = 0 if "TrajectoriesLines" in seq_type or self.dataset_type == "test" else np.random.randint(600) 
+        end_t = start_t + 400 if self.dataset_type != "test" else None
+        imu_end_t = end_t*10 if self.dataset_type != "test" else None
 
-        return video_path, imu_tensor[start_t*10:(start_t+400)*10], gt_tensor[start_t:start_t+400], start_t
+        return video_path, imu_tensor[start_t*10:imu_end_t], gt_tensor[start_t:end_t], start_t

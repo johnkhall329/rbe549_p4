@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as Rot
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
+import os
 
 def plot_traj(gt_poses, output_poses, times, name, save_dir='', save=False, display=True):
     fig = plt.figure(figsize=(12, 8))
@@ -24,6 +25,8 @@ def plot_traj(gt_poses, output_poses, times, name, save_dir='', save=False, disp
     ax.set_zlim(np.min([gt_poses[:,3],output_poses[:,3]]), np.max([gt_poses[:,3],output_poses[:,3]]))
 
     if save:
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir,)
         plt.savefig(save_dir+name+'_3dplot')
     
     fig2 = plt.figure(figsize=(12, 8))
@@ -51,3 +54,42 @@ def plot_traj(gt_poses, output_poses, times, name, save_dir='', save=False, disp
 
     if display:
         plt.show()
+
+def plot_traj_set(gt_poses, output_poses_set, labels, name):
+    fig = plt.figure(figsize=(12, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot(gt_poses[:,0], gt_poses[:,1], gt_poses[:,2], label='Ground Truth Trajectory', linewidth=2)
+
+    for output, label in zip(output_poses_set, labels):
+        ax.plot(output[:,0], output[:,1], output[:,2], label=label, linewidth=2)
+    
+    ax.set_title(name)
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
+    ax.legend()
+    ax.set_xlim(np.min(np.vstack([gt_poses[:,0],output_poses_set[:,:,0]])), np.max(np.vstack([gt_poses[:,0],output_poses_set[:,:,0]])))
+    ax.set_ylim(np.min(np.vstack([gt_poses[:,1],output_poses_set[:,:,1]])), np.max(np.vstack([gt_poses[:,1],output_poses_set[:,:,1]])))
+    ax.set_zlim(np.min(np.vstack([gt_poses[:,2],output_poses_set[:,:,2]])), np.max(np.vstack([gt_poses[:,2],output_poses_set[:,:,2]])))
+
+    plt.show()
+
+if __name__ == '__main__':
+    data_path = "Phase2/Data/TestTrajectories/"
+    traj_type = "TrajectoriesCircles"
+    seq = "4_traj"
+
+    gt = None
+
+    labels = ["VIO", "IO"]
+    models = ["batch_data_VIOFinal", "batch_data_IOFinal"]
+
+    outputs = []
+    for model in models:
+        pred = np.loadtxt(os.path.join("Phase2/Output/",model+"/"+traj_type+"_"+seq+"/stamped_traj_estimate.txt"))
+        if gt is None:
+            txt = np.loadtxt(os.path.join("Phase2/Output/",model+"/"+traj_type+"_"+seq+"/stamped_groundtruth.txt"))
+            gt = txt[:,1:]
+        outputs.append(pred[:,1:])
+
+    plot_traj_set(gt, np.array(outputs), labels, traj_type+"_"+seq)
