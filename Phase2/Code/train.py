@@ -74,9 +74,9 @@ def train(args):
 
     writer = SummaryWriter(args.log_path+args.run_name)
 
-    optimizer = torch.optim.AdamW(model.parameters(), args.l_rate)
+    optimizer = torch.optim.Adam(model.parameters(), args.l_rate)
     global_weight_init = 0.001
-    global_weight_final = 0.025
+    global_weight_final = 0.5
     init_x = -np.log(global_weight_init)
     final_x = -np.log(global_weight_final)
 
@@ -298,7 +298,7 @@ if __name__ == '__main__':
         help='0: VO, 1: IO, 2: VIO.')
     parser.add_argument('--traj_set', type=int, default=4)
     parser.add_argument('--epochs', type=int, default=50)
-    parser.add_argument('--window_size', type=int, default=10)
+    parser.add_argument('--window_size', type=int, default=5)
     parser.add_argument('--l_rate', type=float, default=1e-4)
     parser.add_argument('--log_path',default="./Phase2/Logs/",help="logs path")
     parser.add_argument('--run_name', default="morequatagain",help="folder to store images")
