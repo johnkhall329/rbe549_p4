@@ -17,11 +17,11 @@ class UAVTrajectoryGenerator:
         Derives full UAV state (including Euler angles) from position derivatives
         using the property of differential flatness[cite: 8, 9].
         """
-        # The thrust vector must counteract gravity and provide horizontal acceleration [cite: 6]
+        # The thrust vector must counteract gravity and provide horizontal acceleration
         thrust_vec = np.array([acc[0], acc[1], acc[2] + self.gravity])
         z_body = thrust_vec / np.linalg.norm(thrust_vec)
 
-        # If no yaw is provided, point the nose in the direction of travel [cite: 20]
+        # If no yaw is provided, point the nose in the direction of travel
         if yaw is None:
             yaw = np.arctan2(vel[1], vel[0]) if np.linalg.norm(vel[:2]) > 0.1 else 0
 
@@ -37,7 +37,6 @@ class UAVTrajectoryGenerator:
 
         accel_body = R.T @ thrust_vec
 
-        # r = Rot.from_euler('zyx', [actual_yaw, pitch, roll], degrees=False)
         quat = big_r.as_quat(scalar_first=True) # Returns [w, x, y, z]
 
         return {
@@ -57,7 +56,7 @@ class UAVTrajectoryGenerator:
         if yaw is None:
             yaw = np.arctan2(dist_vec[1], dist_vec[0])
         
-        # Pre-allocate arrays for efficiency
+        # Pre-allocate arrays
         imu_acc = np.zeros((datapoints, 3))
         angle_vec = np.zeros((datapoints, 3))
         all_pos_vec = np.zeros((datapoints//IMAGE_CAPTURE_MULTIPLIER, 3))
@@ -81,17 +80,14 @@ class UAVTrajectoryGenerator:
             vel_vec = dist_vec * ds
             acc_vec = dist_vec * dds
 
-            # Compute physics-based UAV state (roll, pitch, yaw) [cite: 524]
             state = self._compute_uav_state(t + start_time, pos_vec, vel_vec, acc_vec, yaw=yaw)
 
             # Store data for return
             imu_acc[i] = state['accel']
             angle_vec[i] = np.array(state['rpy'])
 
-            # Selective capture for Blender visualization [cite: 526, 548]
+            # 1 Camera frame for every 10 IMU readings
             if i % IMAGE_CAPTURE_MULTIPLIER == 0:
-                # Convert ZYX Euler angles to Quaternion [cite: 546, 547]
-
                 all_pos_vec[i//IMAGE_CAPTURE_MULTIPLIER] = pos_vec
                 quat_pos_vec[i//IMAGE_CAPTURE_MULTIPLIER] = state['quat']
 
@@ -100,7 +96,7 @@ class UAVTrajectoryGenerator:
         # Compute angular velocity (gyro) from orientation changes 
         gyro_vec = np.gradient(angle_vec, dt, axis=0)
         
-        # Generate IMU format for training [cite: 509]
+        # Generate IMU format for training
         imu_data = generate_imu_data_np(imu_acc, gyro_vec, frequency)
 
         # Ground Truth data (Position + Quaternion)
@@ -116,7 +112,8 @@ class UAVTrajectoryGenerator:
         states = []
 
         datapoints = len(times)
-        # Pre-allocate arrays for efficiency
+
+        # Pre-allocate arrays
         imu_acc = np.zeros((datapoints, 3))
         angle_vec = np.zeros((datapoints, 3))
         all_pos_vec = np.zeros((datapoints//IMAGE_CAPTURE_MULTIPLIER, 3))
@@ -129,11 +126,9 @@ class UAVTrajectoryGenerator:
             acc = np.array([-radius * speed**2 * np.cos(speed * t), -radius * speed**2 * np.sin(speed * t), 0])
             state = self._compute_uav_state(t, pos, vel, acc)
 
-            # Store data for return
             imu_acc[i] = state['accel']
             angle_vec[i] = np.array(state['rpy'])
 
-            # Selective capture for Blender visualization [cite: 526, 548]
             if i % IMAGE_CAPTURE_MULTIPLIER == 0:   
 
                 all_pos_vec[i//IMAGE_CAPTURE_MULTIPLIER] = pos
@@ -147,7 +142,7 @@ class UAVTrajectoryGenerator:
         wrap_angle_vec[:, 2] = np.unwrap(wrap_angle_vec[:, 2])
         gyro_vec = np.gradient(wrap_angle_vec, dt, axis=0)
         
-        # Generate IMU format for training [cite: 509]
+        # Generate IMU format for training
         imu_data = generate_imu_data_np(imu_acc, gyro_vec, frequency)
 
         # Ground Truth data (Position + Quaternion)
@@ -171,7 +166,7 @@ class UAVTrajectoryGenerator:
 
 
         datapoints = len(times)
-        # Pre-allocate arrays for efficiency
+        # Pre-allocate arrays
         imu_acc = np.zeros((datapoints, 3))
         angle_vec = np.zeros((datapoints, 3))
         all_pos_vec = np.zeros((datapoints//IMAGE_CAPTURE_MULTIPLIER, 3))
@@ -199,14 +194,11 @@ class UAVTrajectoryGenerator:
                 -z_amplitude * z_speed**2 * np.sin(z_speed * t)
             ])
             
-            # Use the modular physics solver to calculate Euler angles [cite: 11, 27]
             state = self._compute_uav_state(t, pos, vel, acc)
 
-            # Store data for return
             imu_acc[i] = state['accel']
             angle_vec[i] = np.array(state['rpy'])
 
-            # Selective capture for Blender visualization [cite: 526, 548]
             if i % IMAGE_CAPTURE_MULTIPLIER == 0:   
 
                 all_pos_vec[i//IMAGE_CAPTURE_MULTIPLIER] = pos
@@ -220,7 +212,6 @@ class UAVTrajectoryGenerator:
         wrap_angle_vec[:, 2] = np.unwrap(wrap_angle_vec[:, 2])
         gyro_vec = np.gradient(wrap_angle_vec, dt, axis=0)
         
-        # Generate IMU format for training [cite: 509]
         imu_data = generate_imu_data_np(imu_acc, gyro_vec, frequency)
 
         # Ground Truth data (Position + Quaternion)
@@ -230,28 +221,16 @@ class UAVTrajectoryGenerator:
 
         return states, imu_data, gt_data
 
-    # def generate_figure8(self, duration, frequency, radius_x=5.0, radius_y=5.0, z_height=10.0, speed=0.5):
-    #     dt = 1.0 / frequency
-    #     times = np.arange(0, duration, dt)
-    #     states = []
-    #     for t in times:
-    #         pos = np.array([radius_x * np.sin(speed * t), radius_y * np.sin(2 * speed * t), z_height])
-    #         vel = np.array([radius_x * speed * np.cos(speed * t), 2 * radius_y * speed * np.cos(2 * speed * t), 0])
-    #         acc = np.array([-radius_x * speed**2 * np.sin(speed * t), -4 * radius_y * speed**2 * np.sin(2 * speed * t), 0])
-    #         states.append(self._compute_uav_state(t, pos, vel, acc))
-    #     return states
-    
     def generate_figure8(self, duration, frequency, radius_x=5.0, radius_y=5.0, z_height=10.0, speed=0.5):
         dt = 1.0 / frequency
         times = np.arange(0, duration, dt)
         states = []
 
         datapoints = len(times)
-        # Pre-allocate arrays for efficiency
+        # Pre-allocate arrays
         imu_acc = np.zeros((datapoints, 3))
         angle_vec = np.zeros((datapoints, 3))
         
-        # Calculate sizes for decimated capture
         capture_count = datapoints // IMAGE_CAPTURE_MULTIPLIER
         all_pos_vec = np.zeros((capture_count, 3))
         quat_pos_vec = np.zeros((capture_count, 4))
@@ -264,11 +243,9 @@ class UAVTrajectoryGenerator:
             
             state = self._compute_uav_state(t, pos, vel, acc)
 
-            # Store full-frequency data for IMU processing
             imu_acc[i] = state['accel']
             angle_vec[i] = np.array(state['rpy'])
 
-            # Selective capture for Blender visualization and GT
             if i % IMAGE_CAPTURE_MULTIPLIER == 0:
                 idx = i // IMAGE_CAPTURE_MULTIPLIER
                 if idx < capture_count:
@@ -277,13 +254,11 @@ class UAVTrajectoryGenerator:
                     states.append(state)
 
         # Compute angular velocity (gyro) from orientation changes 
-        # Use np.copy to ensure we don't accidentally mutate state['rpy'] if they share memory
         wrap_angle_vec = np.copy(angle_vec)
-        # Unwrap yaw (index 2) to prevent huge spikes in the gradient at +/- PI
+        # Unwrap yaw to prevent huge spikes in the gradient at +/- PI
         wrap_angle_vec[:, 2] = np.unwrap(wrap_angle_vec[:, 2])
         gyro_vec = np.gradient(wrap_angle_vec, dt, axis=0)
         
-        # Generate IMU format (combines Accel and Gyro)
         imu_data = generate_imu_data_np(imu_acc, gyro_vec, frequency)
 
         # Ground Truth data (Position XYZ + Quaternion XYZW)
@@ -321,14 +296,13 @@ class UAVTrajectoryGenerator:
                 start=c[i],
                 end=c[i+1],
                 start_time=current_start_time,
-                yaw=constant_yaw # Force constant yaw as requested
+                yaw=constant_yaw
             )
             
             all_states.extend(states)
             all_imu.append(imu)
             all_gt.append(gt)
 
-        # Vertically stack the numpy arrays for IMU and Ground Truth
         final_imu = np.vstack(all_imu)
         final_gt = np.vstack(all_gt)
 
@@ -336,17 +310,14 @@ class UAVTrajectoryGenerator:
     
     def generate_start_end_points(self, min_dist=1.25, max_dist = 5):
         # Define your workspace bounds
-        # x: 0-10, y: 0-10, z: 1-10
         low = np.array([-4, -4, 3])
         high = np.array([4, 4, 8])
         yaw = np.random.uniform(0, 2*np.pi)
         
         while True:
-            # Generate random start and end points within bounds
             start_point = np.random.uniform(low, high)
             end_point = np.random.uniform(low, high)
             
-            # Calculate Euclidean distance
             dist = np.linalg.norm(end_point - start_point)
             
             # Only return if the length constraint is satisfied
@@ -389,7 +360,6 @@ class UAVTrajectoryGenerator:
         Looks up and executes the appropriate parameter generation function
         based on the provided string key.
         """
-        # Map your string keys directly to the function objects
         function_map = {
             "line": self.generate_start_end_points,
             "circle_changing_height": self.generate_circle_changing_height_params,
@@ -398,15 +368,12 @@ class UAVTrajectoryGenerator:
             "circle": self.generate_circle_params
         }
         
-        # Retrieve the function from the dictionary
         func = function_map.get(trajectory_type.lower())
         
-        # Check if the string matched any valid key
         if func is None:
             valid_keys = list(function_map.keys())
             raise ValueError(f"Unknown trajectory type '{trajectory_type}'. Valid options are: {valid_keys}")
         
-        # Call the retrieved function and return its result
         return func()
     
     def generate_random_trajectory(self, trajectory_type: str, duration: float, frequency: float):
@@ -415,7 +382,6 @@ class UAVTrajectoryGenerator:
         by mapping string keys to the corresponding generator methods.
         """
         
-        # The dictionary maps strings to: (1) The specific randomizer, (2) The generator function to call
         trajectory_map = {
             "line": (self.generate_start_end_points, self.generate_polynomial_line),
             "circle": (self.generate_circle_params, self.generate_circle),
@@ -424,23 +390,18 @@ class UAVTrajectoryGenerator:
             "figure8": (self.generate_figure8_params, self.generate_figure8)
         }
         
-        # Retrieve lookup tuple
         lookup = trajectory_map.get(trajectory_type.lower())
         
         if lookup is None:
             valid_types = list(trajectory_map.keys())
             raise ValueError(f"Unknown trajectory type '{trajectory_type}'. Valid types: {valid_types}")
         
-        # Extract the random parameter generator and the target method
         param_func, target_method = lookup
         
-        # Step 1: Generate the randomized parameters
         random_params = param_func()
         
-        # Step 2: Combine duration and frequency with the randomized parameters
         all_params = [duration, frequency, *random_params]
         
-        # Step 3: Unpack and call the specific trajectory generation method
         return target_method(*all_params)
 
 def visualize_trajectory_3d(states):
@@ -458,8 +419,7 @@ def visualize_trajectory_3d(states):
     # Plot the main trajectory line
     ax.plot(xs, ys, zs, label='UAV Trajectory', color='royalblue', linewidth=2)
 
-    # Plot camera direction vectors (Quiver plot)
-    # We sample a subset of states to avoid visual clutter on the graph
+    # Plot subset of camera direction vectors (Quiver plot)
     sample_rate = max(1, len(states) // 30) 
     
     qx, qy, qz = [], [], []
@@ -488,13 +448,11 @@ def visualize_trajectory_3d(states):
                         [np.sin(yaw), np.cos(yaw), 0],
                         [0, 0, 1]])
         
-        # Combined rotation matrix
         R = R_z @ R_y @ R_x
         
-        # Assuming the camera faces straight down relative to the drone body (Negative Z axis)
+        # Assume the camera faces straight down relative to the drone body (Negative Z axis)
         camera_vector_local = np.array([0, 0, -1])
         
-        # Transform local camera vector to world space
         camera_vector_world = R @ camera_vector_local
         
         u.append(camera_vector_world[0])
@@ -523,10 +481,9 @@ def visualize_trajectory_3d(states):
     plt.savefig('Phase2/Output/test.png')
     plt.show()
 
-# Example usage if run directly
+# Visualize Trajectories
 if __name__ == "__main__":
     generator = UAVTrajectoryGenerator()
-    # Generate a 20-second trajectory at 24 Hz (Standard Blender film frame rate)
     # trajectory, imu_data, gt_data = generator.generate_figure8(duration=10, frequency=100, radius_x = 2.5, radius_y=2.5, z_height=6, speed=0.7)
     # trajectory, imu_data, gt_data = generator.generate_polynomial_line(duration=5, frequency=100, start=(-5,5,5), end = (-5,-5,6))
     # trajectory, imu_data, gt_data = generator.generate_circle(duration=5, frequency=100, radius = 3, z_height=5, speed=1.25)
@@ -561,26 +518,3 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     plt.show()
-
-    # Subplot 1: Gyroscope Data (XYZ rates)
-    # axes[0].plot(time, gt[:, 3], label='quat1')
-    # axes[0].plot(time, gt[:, 4], label='quat2')
-    # axes[0].plot(time, gt[:, 5], label='quat3')
-    # axes[0].plot(time, gt[:, 6], label='quat4')
-    # axes[0].set_ylabel('angle')
-    # axes[0].set_title('gt ang')
-    # axes[0].legend(loc='upper right')
-    # axes[0].grid(True)
-
-    # # Subplot 2: Position over time
-    # axes[1].plot(time, gt[:, 0], label='X')
-    # axes[1].plot(time, gt[:, 1], label='Y')
-    # axes[1].plot(time, gt[:, 2], label='Z')
-    # axes[1].set_ylabel('Acc (m/s^2)')
-    # axes[1].set_xlabel('Time (s)')
-    # axes[1].set_title('Ground Truth Position')
-    # axes[1].legend(loc='upper right')
-    # axes[1].grid(True)
-
-    # plt.tight_layout()
-    # plt.show()
