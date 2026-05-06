@@ -16,7 +16,6 @@ class DeepVIODataset(Dataset):
         """
         self.root_dir = root_dir
         self.transform = transform
-        # List all sequence folders (e.g., 'seq_0', 'seq_1', etc.)
         self.sequences = [os.path.join(root_dir, d) for d in os.listdir(root_dir) 
                           if os.path.isdir(os.path.join(root_dir, d))]
         
@@ -26,19 +25,18 @@ class DeepVIODataset(Dataset):
     def __getitem__(self, idx):
         seq_path = self.sequences[idx]
         
-        # 1. Load the Trajectory Metadata (IMU data)
+        # Load the Trajectory IMU and Pose data
         imu_data = np.load(os.path.join(seq_path, 'imu_data.npy'))
 
         gt_data = np.load(os.path.join(seq_path, 'pos_data.npy'))
             
-        # 2. Load Video
-        video_path = os.path.join(seq_path, "trajectory_video.mp4")
-            
-        # 3. Extract IMU data (Accel and Gyro) 
-        # Assumes trajectory_data is a list of dicts with 'imu' key
         imu_tensor = torch.tensor(imu_data, dtype=torch.float32) # [Seq_Len*10, 6]
 
         gt_tensor = torch.tensor(gt_data, dtype=torch.float32) # [Seq_Len, 7]
+
+
+        # Load Video Paths
+        video_path = os.path.join(seq_path, "trajectory_video.mp4")
 
         return video_path, imu_tensor, gt_tensor
 
@@ -57,7 +55,6 @@ class DeepVIORandomDataset(Dataset):
             self.len = 6
         
 
-        # List all sequence folders (e.g., 'seq_0', 'seq_1', etc.)
         self.sequence_dict = {}
         self.sequence_len = []
         for d in os.listdir(root_dir):
@@ -104,20 +101,19 @@ class DeepVIORandomDataset(Dataset):
 
         seq_path = seq_trajs[seq_idx]
         
-        # 1. Load the Trajectory Metadata (IMU data)
+        # Load the Trajectory IMU and Pose data
         imu_data = np.load(os.path.join(seq_path, 'imu_data.npy'))
 
         gt_data = np.load(os.path.join(seq_path, 'pos_data.npy'))
             
-        # 2. Load Video
-        video_path = os.path.join(seq_path, "trajectory_video.mp4")
-            
-        # 3. Extract IMU data (Accel and Gyro) 
-        # Assumes trajectory_data is a list of dicts with 'imu' key
         imu_tensor = torch.tensor(imu_data, dtype=torch.float32) # [Seq_Len*10, 6]
 
         gt_tensor = torch.tensor(gt_data, dtype=torch.float32) # [Seq_Len, 7]
 
+
+        # Load Video Paths
+        video_path = os.path.join(seq_path, "trajectory_video.mp4")
+            
         start_t = 0 if "TrajectoriesLines" in seq_type or self.dataset_type == "test" else np.random.randint(600) 
         end_t = start_t + 400 if self.dataset_type != "test" else None
         imu_end_t = end_t*10 if self.dataset_type != "test" else None
