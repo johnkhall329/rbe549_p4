@@ -21,6 +21,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"USING DEVICE: {device}")
 
 def loss(output_twist, output_pose, gt_twist, gt_pose, global_weight, rot_weight=1.0, quat_weight=10.0):
+    """
+    rot_weight: gamma parameter to increase importance of angular twist loss
+    quat_weight: rho parameter to increase importance of global orientation loss
+    """
+
     v_loss = F.l1_loss(output_twist[:,:3], gt_twist[:,:3])
     omega_loss = F.l1_loss(output_twist[:,3:], gt_twist[:,3:])
     twist_loss = v_loss + (rot_weight*omega_loss)
@@ -75,8 +80,10 @@ def train(args):
     writer = SummaryWriter(args.log_path+args.run_name)
 
     optimizer = torch.optim.Adam(model.parameters(), args.l_rate)
+
+    # Schedule global weight parameter: alpha
     global_weight_init = 0.001
-    global_weight_final = 0.5
+    global_weight_final = 0.025
     init_x = -np.log(global_weight_init)
     final_x = -np.log(global_weight_final)
 
