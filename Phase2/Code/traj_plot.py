@@ -57,22 +57,47 @@ def plot_traj(gt_poses, output_poses, times, name, save_dir='', save=False, disp
 
 def plot_traj_set(gt_poses, output_poses_set, labels, name):
     fig = plt.figure(figsize=(12, 8))
-    ax = fig.add_subplot(111, projection='3d')
-    ax.plot(gt_poses[:,0], gt_poses[:,1], gt_poses[:,2], label='Ground Truth Trajectory', linewidth=2)
+    ax3d = fig.add_subplot(111, projection='3d')
+    fig2, axes = plt.subplots(1,2, figsize=(15,8))
+
+    ax3d.plot(gt_poses[:,0], gt_poses[:,1], gt_poses[:,2], label='Ground Truth Trajectory', linewidth=2)
+    axes[0].plot(gt_poses[:,0], gt_poses[:,1], label='Ground Truth Trajectory', linewidth=2)
+    axes[1].plot(gt_poses[:,0], gt_poses[:,2], label='Ground Truth Trajectory', linewidth=2)
 
     for output, label in zip(output_poses_set, labels):
-        ax.plot(output[:,0], output[:,1], output[:,2], label=label, linewidth=2)
+        ax3d.plot(output[:,0], output[:,1], output[:,2], label=label, linewidth=2)
+        axes[0].plot(output[:,0], output[:,1], label=label, linewidth=2)
+        axes[1].plot(output[:,0], output[:,2], label=label, linewidth=2)
     
-    ax.set_title(name)
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.set_zlabel("Z")
-    ax.legend()
-    ax.set_xlim(np.min(np.vstack([gt_poses[:,0],output_poses_set[:,:,0]])), np.max(np.vstack([gt_poses[:,0],output_poses_set[:,:,0]])))
-    ax.set_ylim(np.min(np.vstack([gt_poses[:,1],output_poses_set[:,:,1]])), np.max(np.vstack([gt_poses[:,1],output_poses_set[:,:,1]])))
-    ax.set_zlim(np.min(np.vstack([gt_poses[:,2],output_poses_set[:,:,2]])), np.max(np.vstack([gt_poses[:,2],output_poses_set[:,:,2]])))
 
-    plt.show()
+    x_lim = (np.min(np.vstack([gt_poses[:,0],output_poses_set[:,:,0]])), np.max(np.vstack([gt_poses[:,0],output_poses_set[:,:,0]])))
+    y_lim = (np.min(np.vstack([gt_poses[:,1],output_poses_set[:,:,1]])), np.max(np.vstack([gt_poses[:,1],output_poses_set[:,:,1]])))
+    z_lim = (np.min(np.vstack([gt_poses[:,2],output_poses_set[:,:,2]])), np.max(np.vstack([gt_poses[:,2],output_poses_set[:,:,2]])))
+
+    ax3d.set_title(name)
+    ax3d.set_xlabel("X")
+    ax3d.set_ylabel("Y")
+    ax3d.set_zlabel("Z")
+    ax3d.legend()
+    ax3d.set_xlim(*x_lim)
+    ax3d.set_ylim(*y_lim)
+    ax3d.set_zlim(*z_lim)
+
+    axes[0].set_title(name + " Top View")
+    axes[0].set_xlabel("X")
+    axes[0].set_ylabel("Y")
+    # axes[0].legend()
+    axes[0].set_xlim(*x_lim)
+    axes[0].set_ylim(*y_lim)
+
+    axes[1].set_title(name+" Side View")
+    axes[1].set_xlabel("X")
+    axes[1].set_ylabel("Z")
+    axes[1].legend()
+    axes[1].set_xlim(*x_lim)
+    axes[1].set_ylim(*z_lim)
+
+    plt.show() 
 
 if __name__ == '__main__':
     data_path = "Phase2/Data/TestTrajectories/"
@@ -81,8 +106,8 @@ if __name__ == '__main__':
 
     gt = None
 
-    labels = ["VIO", "IO"]
-    models = ["batch_data_VIOFinal", "batch_data_IOFinal"]
+    labels = ["VIO", "VO", "IO"]
+    models = ["batch_data_VIOFinal", "batch_data_VOFinal", "batch_data_IOFinal"]
 
     outputs = []
     for model in models:
@@ -92,4 +117,4 @@ if __name__ == '__main__':
             gt = txt[:,1:]
         outputs.append(pred[:,1:])
 
-    plot_traj_set(gt, np.array(outputs), labels, traj_type+"_"+seq)
+    plot_traj_set(gt, np.array(outputs), labels, "Test Circles")
