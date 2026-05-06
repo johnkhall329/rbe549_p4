@@ -73,12 +73,14 @@ class DeepVIO(nn.Module):
         self.linear1 = nn.Linear(1024, 128)
         self.linear2 = nn.Linear(128, 6)
 
+        # Handle different model type
+        # Changes size of concatenated feature vec
         if model_type == 0:
             self.VO = DeepVO()
             self.IO = None
             self.rnn = nn.LSTM(
-                input_size=1031,#49152,#24576, 
-                hidden_size=1024,#64, 
+                input_size=1031,
+                hidden_size=1024,
                 num_layers=2,
                 batch_first=True)
             self.layer_norm = nn.LayerNorm(1031)
@@ -86,8 +88,8 @@ class DeepVIO(nn.Module):
             self.VO = None
             self.IO = DeepIO()
             self.rnn = nn.LSTM(
-                input_size=39,#49152,#24576, 
-                hidden_size=128,#64, 
+                input_size=39, 
+                hidden_size=128, 
                 num_layers=2,
                 batch_first=True)
             self.layer_norm = nn.LayerNorm(39)
@@ -96,8 +98,8 @@ class DeepVIO(nn.Module):
             self.VO = DeepVO()
             self.IO = DeepIO()
             self.rnn = nn.LSTM(
-                input_size=1063,#49152,#24576, 
-                hidden_size=1024,#64, 
+                input_size=1063, 
+                hidden_size=1024,
                 num_layers=2,
                 batch_first=True)
             self.layer_norm = nn.LayerNorm(1063)
@@ -108,11 +110,12 @@ class DeepVIO(nn.Module):
         # imu (Batch, 10, 6)
         # xyzQ (1,1,7)
 
+        
         if self.VO is not None and self.IO is not None:
             c_out = self.VO(image)
             imu_out = self.IO(imu)
-            cat_out = torch.cat((c_out, imu_out), 2)#1 1 49158
-            cat_out = torch.cat((cat_out, xyzQ), 2)#1 1 49165
+            cat_out = torch.cat((c_out, imu_out), 2)
+            cat_out = torch.cat((cat_out, xyzQ), 2)
             normalized = self.layer_norm(cat_out)
         elif self.VO is not None and self.IO is None:
             c_out = self.VO(image)

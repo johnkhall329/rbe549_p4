@@ -3,6 +3,12 @@ import torch.nn.functional as F
 from typing import Tuple
 
 def process_output(twist, prev_pose):
+    """
+    Take output twist and previous pose estimate to produce new pose
+    Exponential map twist to create change in pose in SE(3)
+    Apply to previous pose to produce new pose in SE(3)
+    Return in xyzq form
+    """
     delta_pose = se3_exp_map(twist).transpose(-1,-2) #pytorch 3d does it weird
     quats = prev_pose[:,0,3:]
     rots = quaternion_to_matrix(quats)
@@ -16,6 +22,11 @@ def process_output(twist, prev_pose):
     return new_poses
 
 def get_twist(gt_data):
+    """
+    Given gt pose t and t+1, find twist between two
+    Converts poses into 4x4, applies inverse of t to t+1 to get delta pose
+    Logarithmic map delta pose into se(3) for twist 
+    """
     prev_pose, curr_pose = gt_data.unbind(1)
 
     T_prev_inv = torch.eye(4).repeat(gt_data.shape[0], 1, 1).to(gt_data.device)
@@ -37,12 +48,16 @@ def get_twist(gt_data):
     return gt_twist
 
 def relative_start(gt_pose, start_pose):
+    """
+    Makes all ground truth poses relative to starting position
+    """
     reset_pose = torch.zeros_like(gt_pose)
     reset_pose[:,:,:3] = gt_pose[:,:,:3] - start_pose[:,:,:3]
 
     reset_pose[:,:,3:] = quaternion_multiply(quaternion_invert(start_pose[:,:,3:]), gt_pose[:,:,3:])
     return reset_pose
 
+# FUNCTIONS BELOW ARE FROM PYTORCH3D SOURCE CODE
     
 def se3_exp_map(log_transform: torch.Tensor, eps: float = 1e-4) -> torch.Tensor:
     """
